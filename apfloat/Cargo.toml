@@ -1,5 +1,8 @@
 [package]
-authors = ["The Rust Project Developers", "Yudai Kiyofuji <own7000hr@gmail.com>"]
+authors = [
+    "The Rust Project Developers",
+    "Yudai Kiyofuji <own7000hr@gmail.com>"
+]
 name = "amplify_apfloat"
 version = "0.1.3"
 description = "rustc_apfloat with u256 backend to utilize Octuple precision floating-point format"

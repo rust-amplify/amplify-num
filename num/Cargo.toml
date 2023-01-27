@@ -2,12 +2,15 @@
 name = "amplify_num"
 version = "0.4.1"
 description = "Amplifying numeric types: big-sized and bit-sized integers"
-authors = ["Dr. Maxim Orlovsky <orlovsky@pandoracore.com>"]
-keywords = ["generics", "num", "wrap", "patterns"]
+authors = [
+    "Dr. Maxim Orlovsky <orlovsky@ubideco.org>",
+    "Yudai Kiyofuji <own7000hr@gmail.com>"
+]
+keywords = ["integers", "num", "wrap", "patterns"]
 categories = ["mathematics", "no-std", "embedded", "science"]
-repository = "https://github.com/rust-amplify/rust-amplify"
+repository = "https://github.com/rust-amplify/amplify-num"
 homepage = "https://github.com/rust-amplify"
-license = "MIT"
+license = "Apache-2.0"
 readme = "../README.md"
 edition = "2021"
 rust-version = "1.60.0"
