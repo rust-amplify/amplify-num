@@ -603,9 +603,9 @@ impl<S: Semantics> fmt::Display for IeeeFloat<S> {
 
             // Exponent always at least two digits if we do not truncate zeros.
             if truncate_zero {
-                write!(f, "{:+}", exp)?;
+                write!(f, "{exp:+}")?;
             } else {
-                write!(f, "{:+03}", exp)?;
+                write!(f, "{exp:+03}")?;
             }
 
             return Ok(());
@@ -1448,10 +1448,10 @@ impl<S: Semantics> Float for IeeeFloat<S> {
         // the normalized exponent of half the smallest denormal.
 
         let sig_bits = (S::PRECISION - 1) as i32;
-        let max_change = S::MAX_EXP as i32 - (S::MIN_EXP as i32 - sig_bits) + 1;
+        let max_change = S::MAX_EXP - (S::MIN_EXP - sig_bits) + 1;
 
         // Clamp to one past the range ends to let normalize handle overflow.
-        let exp_change = cmp::min(cmp::max(exp as i32, -max_change - 1), max_change);
+        let exp_change = cmp::min(cmp::max(exp, -max_change - 1), max_change);
         self.exp = self.exp.saturating_add(exp_change as ExpInt);
         self = self.normalize(round, Loss::ExactlyZero).value;
         if self.is_nan() {

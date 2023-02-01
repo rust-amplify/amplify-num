@@ -35,10 +35,10 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Error::InvalidChar(ch) => write!(f, "invalid hex character {}", ch),
-            Error::OddLengthString(ell) => write!(f, "odd hex string length {}", ell),
+            Error::InvalidChar(ch) => write!(f, "invalid hex character {ch}"),
+            Error::OddLengthString(ell) => write!(f, "odd hex string length {ell}"),
             Error::InvalidLength(ell, ell2) => {
-                write!(f, "bad hex string length {} (expected {})", ell2, ell)
+                write!(f, "bad hex string length {ell2} (expected {ell})")
             }
         }
     }
@@ -71,7 +71,7 @@ pub trait FromHex: Sized {
 impl<T: fmt::LowerHex> ToHex for T {
     /// Outputs the hash in hexadecimal form
     fn to_hex(&self) -> String {
-        format!("{:x}", self)
+        format!("{self:x}")
     }
 }
 
@@ -167,7 +167,7 @@ impl ToHex for [u8] {
         use core::fmt::Write;
         let mut ret = String::with_capacity(2 * self.len());
         for ch in self {
-            write!(ret, "{:02x}", ch).expect("writing to string");
+            write!(ret, "{ch:02x}").expect("writing to string");
         }
         ret
     }
