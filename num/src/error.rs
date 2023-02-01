@@ -84,11 +84,7 @@ pub struct ParseLengthError {
 
 impl core::fmt::Display for ParseLengthError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(
-            f,
-            "Invalid length: got {}, expected {}",
-            self.actual, self.expected
-        )
+        write!(f, "Invalid length: got {}, expected {}", self.actual, self.expected)
     }
 }
 #[cfg(feature = "std")]

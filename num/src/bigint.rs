@@ -586,10 +586,7 @@ macro_rules! construct_bigint {
             {
                 let other = other.into();
                 if !Self::IS_SIGNED_TYPE {
-                    (
-                        self.wrapping_add(!other).wrapping_add($name::ONE),
-                        self < other,
-                    )
+                    (self.wrapping_add(!other).wrapping_add($name::ONE), self < other)
                 } else {
                     self.overflowing_add((!other).wrapping_add($name::ONE))
                 }
@@ -1158,8 +1155,8 @@ macro_rules! construct_bigint {
         #[cfg(feature = "alloc")]
         impl ::core::fmt::UpperHex for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> Result<(), ::core::fmt::Error> {
-                use alloc::string::String;
                 use alloc::format;
+                use alloc::string::String;
 
                 let mut hex = String::new();
                 for chunk in self.0.iter().rev().skip_while(|x| **x == 0) {
@@ -1194,8 +1191,8 @@ macro_rules! construct_bigint {
         #[cfg(feature = "alloc")]
         impl ::core::fmt::LowerHex for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> Result<(), ::core::fmt::Error> {
-                use alloc::string::String;
                 use alloc::format;
+                use alloc::string::String;
 
                 let mut hex = String::new();
                 for chunk in self.0.iter().rev().skip_while(|x| **x == 0) {
@@ -1230,8 +1227,8 @@ macro_rules! construct_bigint {
         #[cfg(feature = "alloc")]
         impl ::core::fmt::Octal for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> Result<(), ::core::fmt::Error> {
-                use alloc::string::String;
                 use alloc::format;
+                use alloc::string::String;
 
                 let mut octal = String::new();
                 for chunk in self.0.iter().rev().skip_while(|x| **x == 0) {
@@ -1267,8 +1264,8 @@ macro_rules! construct_bigint {
         #[cfg(feature = "alloc")]
         impl ::core::fmt::Binary for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> Result<(), ::core::fmt::Error> {
-                use alloc::string::String;
                 use alloc::format;
+                use alloc::string::String;
 
                 let mut binary = String::new();
                 for chunk in self.0.iter().rev().skip_while(|x| **x == 0) {
@@ -1663,12 +1660,8 @@ mod tests {
             "0x000000000000000000000000000000000000000000000000ffffffffffffffff"
         );
 
-        let max_val = u256([
-            0xFFFFFFFFFFFFFFFF,
-            0xFFFFFFFFFFFFFFFF,
-            0xFFFFFFFFFFFFFFFF,
-            0xFFFFFFFFFFFFFFFF,
-        ]);
+        let max_val =
+            u256([0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]);
         assert_eq!(
             format!("{}", max_val),
             "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -1679,22 +1672,12 @@ mod tests {
     #[test]
     fn fmt_hex() {
         let one = u256::ONE;
-        let mut u_256 = u256([
-            0x0000000000000000,
-            0xAAAAAAAABBBBBBBB,
-            0x0000000111122222,
-            0x0000000000000000,
-        ]);
+        let mut u_256 =
+            u256([0x0000000000000000, 0xAAAAAAAABBBBBBBB, 0x0000000111122222, 0x0000000000000000]);
 
         // UpperHex
-        assert_eq!(
-            format!("{:X}", u_256),
-            "111122222AAAAAAAABBBBBBBB0000000000000000"
-        );
-        assert_eq!(
-            format!("{:#X}", u_256),
-            "0x111122222AAAAAAAABBBBBBBB0000000000000000"
-        );
+        assert_eq!(format!("{:X}", u_256), "111122222AAAAAAAABBBBBBBB0000000000000000");
+        assert_eq!(format!("{:#X}", u_256), "0x111122222AAAAAAAABBBBBBBB0000000000000000");
         assert_eq!(format!("{:X}", u256::ZERO), "0");
         assert_eq!(format!("{:05X}", one), "00001");
         assert_eq!(format!("{:#05X}", one), "0x001");
@@ -1703,14 +1686,8 @@ mod tests {
         assert_eq!(format!("{:w^#7X}", one), "ww0x1ww");
 
         // LowerHex
-        assert_eq!(
-            format!("{:x}", u_256),
-            "111122222aaaaaaaabbbbbbbb0000000000000000"
-        );
-        assert_eq!(
-            format!("{:#x}", u_256),
-            "0x111122222aaaaaaaabbbbbbbb0000000000000000"
-        );
+        assert_eq!(format!("{:x}", u_256), "111122222aaaaaaaabbbbbbbb0000000000000000");
+        assert_eq!(format!("{:#x}", u_256), "0x111122222aaaaaaaabbbbbbbb0000000000000000");
         assert_eq!(format!("{:x}", u256::ZERO), "0");
         assert_eq!(format!("{:05x}", one), "00001");
         assert_eq!(format!("{:#05x}", one), "0x001");
@@ -1806,12 +1783,7 @@ mod tests {
                 0xfe, 0xed, 0xba, 0xad, 0xf0, 0x0d, 0xde, 0xfa, 0xce, 0xda, 0x11, 0xfe, 0xd2, 0xba,
                 0xd1, 0xc0, 0xff, 0xe0
             ]),
-            u256([
-                0x11fed2bad1c0ffe0,
-                0xbaadf00ddefaceda,
-                0xdeafbabe2bedfeed,
-                0x1badcafedeadbeef
-            ])
+            u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
         );
     }
 
@@ -1822,10 +1794,7 @@ mod tests {
             0xfe, 0xed,
         ];
         be.reverse();
-        assert_eq!(
-            Uint128::from_le_bytes(be),
-            Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
-        );
+        assert_eq!(Uint128::from_le_bytes(be), Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef]));
 
         let mut be = [
             0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
@@ -1835,12 +1804,7 @@ mod tests {
         be.reverse();
         assert_eq!(
             u256::from_le_bytes(be),
-            u256([
-                0x11fed2bad1c0ffe0,
-                0xbaadf00ddefaceda,
-                0xdeafbabe2bedfeed,
-                0x1badcafedeadbeef
-            ])
+            u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
         );
     }
 
@@ -1855,13 +1819,8 @@ mod tests {
         );
 
         assert_eq!(
-            u256([
-                0x11fed2bad1c0ffe0,
-                0xbaadf00ddefaceda,
-                0xdeafbabe2bedfeed,
-                0x1badcafedeadbeef
-            ])
-            .to_be_bytes(),
+            u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
+                .to_be_bytes(),
             [
                 0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
                 0xfe, 0xed, 0xba, 0xad, 0xf0, 0x0d, 0xde, 0xfa, 0xce, 0xda, 0x11, 0xfe, 0xd2, 0xba,
@@ -1881,13 +1840,8 @@ mod tests {
         );
 
         assert_eq!(
-            u256([
-                0x11fed2bad1c0ffe0,
-                0xbaadf00ddefaceda,
-                0xdeafbabe2bedfeed,
-                0x1badcafedeadbeef
-            ])
-            .to_le_bytes(),
+            u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
+                .to_le_bytes(),
             [
                 0xe0, 0xff, 0xc0, 0xd1, 0xba, 0xd2, 0xfe, 0x11, 0xda, 0xce, 0xfa, 0xde, 0x0d, 0xf0,
                 0xad, 0xba, 0xed, 0xfe, 0xed, 0x2b, 0xbe, 0xba, 0xaf, 0xde, 0xef, 0xbe, 0xad, 0xde,
@@ -1970,29 +1924,20 @@ mod tests {
         // Increment
         let mut incr = shr;
         incr += 1u32;
-        assert_eq!(
-            incr,
-            u256([0x7DDE000000000001u64, 0x0001BD5B7DDFBD5B, 0, 0])
-        );
+        assert_eq!(incr, u256([0x7DDE000000000001u64, 0x0001BD5B7DDFBD5B, 0, 0]));
         // Subtraction
         let sub = incr - init;
         assert_eq!(sub, u256([0x9F30411021524112u64, 0x0001BD5B7DDFBD5A, 0, 0]));
         // Multiplication
         let mult = sub * 300u32;
-        assert_eq!(
-            mult,
-            u256([0x8C8C3EE70C644118u64, 0x0209E7378231E632, 0, 0])
-        );
+        assert_eq!(mult, u256([0x8C8C3EE70C644118u64, 0x0209E7378231E632, 0, 0]));
         // Division
         assert_eq!(u256::from(105u64) / u256::from(5u64), u256::from(21u64));
         let div = mult / u256::from(300u64);
         assert_eq!(div, u256([0x9F30411021524112u64, 0x0001BD5B7DDFBD5A, 0, 0]));
 
         assert_eq!(u256::from(105u64) % u256::from(5u64), u256::from(0u64));
-        assert_eq!(
-            u256::from(35498456u64) % u256::from(3435u64),
-            u256::from(1166u64)
-        );
+        assert_eq!(u256::from(35498456u64) % u256::from(3435u64), u256::from(1166u64));
         let rem_src = mult * u256::from(39842u64) + u256::from(9054u64);
         assert_eq!(rem_src % u256::from(39842u64), u256::from(9054u64));
         // TODO: bit inversion
@@ -2010,31 +1955,15 @@ mod tests {
         let u256_res = u224_res * 0xFFFFFFFFu32;
 
         assert_eq!(u96_res, u256([0xffffffff21524111u64, 0xDEADBEEE, 0, 0]));
-        assert_eq!(
-            u128_res,
-            u256([0x21524111DEADBEEFu64, 0xDEADBEEE21524110, 0, 0])
-        );
-        assert_eq!(
-            u160_res,
-            u256([0xBD5B7DDD21524111u64, 0x42A4822200000001, 0xDEADBEED, 0])
-        );
+        assert_eq!(u128_res, u256([0x21524111DEADBEEFu64, 0xDEADBEEE21524110, 0, 0]));
+        assert_eq!(u160_res, u256([0xBD5B7DDD21524111u64, 0x42A4822200000001, 0xDEADBEED, 0]));
         assert_eq!(
             u192_res,
-            u256([
-                0x63F6C333DEADBEEFu64,
-                0xBD5B7DDFBD5B7DDB,
-                0xDEADBEEC63F6C334,
-                0
-            ])
+            u256([0x63F6C333DEADBEEFu64, 0xBD5B7DDFBD5B7DDB, 0xDEADBEEC63F6C334, 0])
         );
         assert_eq!(
             u224_res,
-            u256([
-                0x7AB6FBBB21524111u64,
-                0xFFFFFFFBA69B4558,
-                0x854904485964BAAA,
-                0xDEADBEEB
-            ])
+            u256([0x7AB6FBBB21524111u64, 0xFFFFFFFBA69B4558, 0x854904485964BAAA, 0xDEADBEEB])
         );
         assert_eq!(
             u256_res,
@@ -2053,10 +1982,7 @@ mod tests {
 
         let u128_res = u64_val * u64_val;
 
-        assert_eq!(
-            u128_res,
-            u256([0x048D1354216DA321u64, 0xC1B1CD13A4D13D46, 0, 0])
-        );
+        assert_eq!(u128_res, u256([0x048D1354216DA321u64, 0xC1B1CD13A4D13D46, 0, 0]));
 
         let u256_res = u128_res * u128_res;
 
@@ -2080,19 +2006,10 @@ mod tests {
         assert_eq!(init << 64, u256([0, 0xDEADBEEFDEADBEEF, 0, 0]));
         let add = (init << 64) + init;
         assert_eq!(add, u256([0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0, 0]));
-        assert_eq!(
-            add >> 0,
-            u256([0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0, 0])
-        );
-        assert_eq!(
-            add << 0,
-            u256([0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0, 0])
-        );
+        assert_eq!(add >> 0, u256([0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0, 0]));
+        assert_eq!(add << 0, u256([0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0, 0]));
         assert_eq!(add >> 64, u256([0xDEADBEEFDEADBEEF, 0, 0, 0]));
-        assert_eq!(
-            add << 64,
-            u256([0, 0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0])
-        );
+        assert_eq!(add << 64, u256([0, 0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0]));
     }
 
     #[cfg(feature = "serde")]
@@ -2108,10 +2025,7 @@ mod tests {
             assert_eq!(bin_decoded, uint);
         };
 
-        check(
-            u256::from(0u64),
-            "0000000000000000000000000000000000000000000000000000000000000000",
-        );
+        check(u256::from(0u64), "0000000000000000000000000000000000000000000000000000000000000000");
         check(
             u256::from(0xDEADBEEFu64),
             "00000000000000000000000000000000000000000000000000000000deadbeef",
@@ -2121,21 +2035,11 @@ mod tests {
             "000000000000dd44000000000000cc33000000000000bb22000000000000aa11",
         );
         check(
-            u256([
-                u64::max_value(),
-                u64::max_value(),
-                u64::max_value(),
-                u64::max_value(),
-            ]),
+            u256([u64::max_value(), u64::max_value(), u64::max_value(), u64::max_value()]),
             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         );
         check(
-            u256([
-                0xA69B4555DEADBEEF,
-                0xA69B455CD41BB662,
-                0xD41BB662A69B4550,
-                0xDEADBEEAA69B455C,
-            ]),
+            u256([0xA69B4555DEADBEEF, 0xA69B455CD41BB662, 0xD41BB662A69B4550, 0xDEADBEEAA69B455C]),
             "deadbeeaa69b455cd41bb662a69b4550a69b455cd41bb662a69b4555deadbeef",
         );
 
@@ -2172,58 +2076,28 @@ mod tests {
 
     #[test]
     fn u256_add_test() {
-        assert_eq!(
-            (u256::MAX - u256::ONE, true),
-            u256::MAX.overflowing_add(u256::MAX)
-        );
+        assert_eq!((u256::MAX - u256::ONE, true), u256::MAX.overflowing_add(u256::MAX));
     }
 
     #[test]
     fn i256_add_test() {
-        assert_eq!(
-            (i256::from(3), false),
-            i256::from(1).overflowing_add(i256::from(2))
-        );
-        assert_eq!(
-            (i256::from(1), false),
-            i256::from(-1).overflowing_add(i256::from(2))
-        );
-        assert_eq!(
-            (i256::from(-2), false),
-            i256::from(-1).overflowing_add(i256::from(-1))
-        );
-        assert_eq!(
-            (i256::from(0), false),
-            i256::from(0).overflowing_add(i256::from(0))
-        );
+        assert_eq!((i256::from(3), false), i256::from(1).overflowing_add(i256::from(2)));
+        assert_eq!((i256::from(1), false), i256::from(-1).overflowing_add(i256::from(2)));
+        assert_eq!((i256::from(-2), false), i256::from(-1).overflowing_add(i256::from(-1)));
+        assert_eq!((i256::from(0), false), i256::from(0).overflowing_add(i256::from(0)));
         assert_eq!((i256::MIN, true), i256::from(1).overflowing_add(i256::MAX));
     }
 
     #[test]
     fn i256_sub_test() {
-        assert_eq!(
-            (i256::from(-1), false),
-            i256::from(1).overflowing_sub(i256::from(2))
-        );
-        assert_eq!(
-            (i256::from(1), false),
-            i256::from(3).overflowing_sub(i256::from(2))
-        );
-        assert_eq!(
-            (i256::from(-3), false),
-            i256::from(-4).overflowing_sub(i256::from(-1))
-        );
-        assert_eq!(
-            (i256::from(0), false),
-            i256::from(0).overflowing_add(i256::from(0))
-        );
+        assert_eq!((i256::from(-1), false), i256::from(1).overflowing_sub(i256::from(2)));
+        assert_eq!((i256::from(1), false), i256::from(3).overflowing_sub(i256::from(2)));
+        assert_eq!((i256::from(-3), false), i256::from(-4).overflowing_sub(i256::from(-1)));
+        assert_eq!((i256::from(0), false), i256::from(0).overflowing_add(i256::from(0)));
         assert_eq!((i256::MIN, false), i256::from(0).overflowing_sub(i256::MIN));
         assert_eq!((i256::ZERO, false), i256::MIN.overflowing_sub(i256::MIN));
         assert_eq!((-i256::ONE, false), i256::MAX.overflowing_sub(i256::MIN));
-        assert_eq!(
-            (i256::MAX, true),
-            (-i256::from(2)).overflowing_sub(i256::MAX)
-        );
+        assert_eq!((i256::MAX, true), (-i256::from(2)).overflowing_sub(i256::MAX));
     }
 
     #[test]
@@ -2242,22 +2116,10 @@ mod tests {
 
     #[test]
     fn i256_mul_test() {
-        assert_eq!(
-            (i256::from(-12), false),
-            i256::from(3).overflowing_mul(i256::from(-4))
-        );
-        assert_eq!(
-            (i256::from(6), false),
-            i256::from(2).overflowing_mul(i256::from(3))
-        );
-        assert_eq!(
-            (i256::from(30), false),
-            i256::from(-6).overflowing_mul(i256::from(-5))
-        );
-        assert_eq!(
-            (i256::from(-2), true),
-            i256::MAX.overflowing_mul(i256::from(2))
-        );
+        assert_eq!((i256::from(-12), false), i256::from(3).overflowing_mul(i256::from(-4)));
+        assert_eq!((i256::from(6), false), i256::from(2).overflowing_mul(i256::from(3)));
+        assert_eq!((i256::from(30), false), i256::from(-6).overflowing_mul(i256::from(-5)));
+        assert_eq!((i256::from(-2), true), i256::MAX.overflowing_mul(i256::from(2)));
         assert_eq!((i256::ZERO, true), i256::MIN.overflowing_mul(i256::from(2)));
         assert_eq!((i256::ONE, true), i256::MAX.overflowing_mul(i256::MAX));
     }
@@ -2289,31 +2151,16 @@ mod tests {
 
     #[test]
     fn i256_div_test() {
-        assert_eq!(
-            Ok((i256::from(3), i256::from(1))),
-            i256::from(7).div_rem(i256::from(2i32))
-        );
-        assert_eq!(
-            Ok((i256::from(-3), i256::from(1))),
-            i256::from(7).div_rem(i256::from(-2i128))
-        );
-        assert_eq!(
-            Ok((i256::from(-3), i256::from(-1))),
-            i256::from(-7).div_rem(i256::from(2))
-        );
-        assert_eq!(
-            Ok((i256::from(3), i256::from(-1))),
-            i256::from(-7).div_rem(i256::from(-2))
-        );
+        assert_eq!(Ok((i256::from(3), i256::from(1))), i256::from(7).div_rem(i256::from(2i32)));
+        assert_eq!(Ok((i256::from(-3), i256::from(1))), i256::from(7).div_rem(i256::from(-2i128)));
+        assert_eq!(Ok((i256::from(-3), i256::from(-1))), i256::from(-7).div_rem(i256::from(2)));
+        assert_eq!(Ok((i256::from(3), i256::from(-1))), i256::from(-7).div_rem(i256::from(-2)));
         assert!(i256::div_rem(i256::MAX, i256::ZERO).is_err());
     }
 
     #[test]
     fn overflowing_div_est() {
-        assert_eq!(
-            (i256::from(3), false),
-            i256::from(7).overflowing_div(i256::from(2i32))
-        );
+        assert_eq!((i256::from(3), false), i256::from(7).overflowing_div(i256::from(2i32)));
         assert_eq!((i256::MIN, true), i256::MIN.overflowing_div(i256::from(-1)));
         let res = std::panic::catch_unwind(|| i256::overflowing_div(i256::MAX, i256::ZERO));
         assert!(res.is_err());
@@ -2345,14 +2192,8 @@ mod tests {
 
     #[test]
     fn overflowing_rem_est() {
-        assert_eq!(
-            (i256::from(1), false),
-            i256::from(7).overflowing_rem(i256::from(2i32))
-        );
-        assert_eq!(
-            (i256::ZERO, true),
-            i256::MIN.overflowing_rem(i256::from(-1))
-        );
+        assert_eq!((i256::from(1), false), i256::from(7).overflowing_rem(i256::from(2i32)));
+        assert_eq!((i256::ZERO, true), i256::MIN.overflowing_rem(i256::from(-1)));
         let res = std::panic::catch_unwind(|| i256::overflowing_rem(i256::MAX, i256::ZERO));
         assert!(res.is_err());
     }
@@ -2382,19 +2223,13 @@ mod tests {
 
     #[test]
     fn overflowing_div_euclid_test() {
-        assert_eq!(
-            (u512::from(2u8), false),
-            u512::from(5u8).overflowing_div_euclid(2u8)
-        );
+        assert_eq!((u512::from(2u8), false), u512::from(5u8).overflowing_div_euclid(2u8));
         assert_eq!((i1024::MIN, true), i1024::MIN.overflowing_div_euclid(-1));
     }
 
     #[test]
     fn wrapping_div_euclid_test() {
-        assert_eq!(
-            u256::from(10u8),
-            u256::from(100u8).wrapping_div_euclid(10u8)
-        );
+        assert_eq!(u256::from(10u8), u256::from(100u8).wrapping_div_euclid(10u8));
         assert_eq!(i1024::MIN, i1024::MIN.wrapping_div_euclid(-1));
     }
 
@@ -2415,10 +2250,7 @@ mod tests {
 
     #[test]
     fn overflowing_rem_euclid_test() {
-        assert_eq!(
-            (u512::from(1u8), false),
-            u512::from(5u8).overflowing_rem_euclid(2u8)
-        );
+        assert_eq!((u512::from(1u8), false), u512::from(5u8).overflowing_rem_euclid(2u8));
         assert_eq!((i1024::ZERO, true), i1024::MIN.overflowing_rem_euclid(-1));
     }
 

@@ -846,13 +846,8 @@ impl<S: Semantics> Float for IeeeFloat<S> {
             (Category::Normal, Category::Normal) => {
                 self.exp += rhs.exp;
                 let mut wide_sig = [Limb::ZERO; 2];
-                let loss = sig::mul(
-                    &mut wide_sig,
-                    &mut self.exp,
-                    &self.sig,
-                    &rhs.sig,
-                    S::PRECISION,
-                );
+                let loss =
+                    sig::mul(&mut wide_sig, &mut self.exp, &self.sig, &rhs.sig, S::PRECISION);
                 self.sig = [wide_sig[0]];
                 let mut status;
                 self = unpack!(status=, self.normalize(round, loss));
@@ -923,11 +918,7 @@ impl<S: Semantics> Float for IeeeFloat<S> {
             // Extend the addend significand to ext_precision - 1. This guarantees
             // that the high bit of the significand is zero (same as wide_sig),
             // so the addition will overflow (if it does overflow at all) into the top bit.
-            sig::shift_left(
-                &mut ext_addend_sig,
-                &mut 0,
-                ext_precision - 1 - S::PRECISION,
-            );
+            sig::shift_left(&mut ext_addend_sig, &mut 0, ext_precision - 1 - S::PRECISION);
             loss = sig::add_or_sub(
                 &mut wide_sig,
                 &mut self.exp,
@@ -2086,13 +2077,8 @@ impl<S: Semantics> IeeeFloat<S> {
 
                 if power & 1 != 0 {
                     r_scratch.resize(r.len() + p5.len(), Limb::ZERO);
-                    let _: Loss = sig::mul(
-                        &mut r_scratch,
-                        &mut 0,
-                        &r,
-                        &p5,
-                        (r.len() + p5.len()) * LIMB_BITS,
-                    );
+                    let _: Loss =
+                        sig::mul(&mut r_scratch, &mut 0, &r, &p5, (r.len() + p5.len()) * LIMB_BITS);
                     while r_scratch.last() == Some(&Limb::ZERO) {
                         r_scratch.pop();
                     }
@@ -2348,9 +2334,9 @@ impl Loss {
 /// arithmetic. As a rule of thumb, no functions in this module should
 /// dynamically allocate.
 mod sig {
+    use super::{limbs_for_bits, ExpInt, Limb, Loss, LIMB_BITS};
     use std::cmp::Ordering;
     use std::mem;
-    use super::{ExpInt, Limb, LIMB_BITS, limbs_for_bits, Loss};
 
     pub(super) fn is_all_zeros(limbs: &[Limb]) -> bool {
         limbs.iter().all(|&l| l.is_zero())
@@ -2362,9 +2348,7 @@ mod sig {
             .iter()
             .enumerate()
             .find(|(_, &limb)| !(limb.is_zero()))
-            .map_or(0, |(i, limb)| {
-                i * LIMB_BITS + limb.trailing_zeros() as usize + 1
-            })
+            .map_or(0, |(i, limb)| i * LIMB_BITS + limb.trailing_zeros() as usize + 1)
     }
 
     /// One, not zero, based MSB. That is, returns 0 for a zeroed significand.
@@ -2374,9 +2358,7 @@ mod sig {
             .enumerate()
             .rev()
             .find(|(_, &limb)| !(limb.is_zero()))
-            .map_or(0, |(i, limb)| {
-                (i + 1) * LIMB_BITS - limb.leading_zeros() as usize
-            })
+            .map_or(0, |(i, limb)| (i + 1) * LIMB_BITS - limb.leading_zeros() as usize)
     }
 
     /// Comparison (unsigned) of two significands.
@@ -2517,10 +2499,7 @@ mod sig {
 
         if precision <= omsb {
             extract(dst, src, precision, omsb - precision);
-            (
-                Loss::through_truncation(src, omsb - precision),
-                omsb as ExpInt - 1,
-            )
+            (Loss::through_truncation(src, omsb - precision), omsb as ExpInt - 1)
         } else {
             extract(dst, src, omsb, 0);
             (Loss::ExactlyZero, precision as ExpInt - 1)

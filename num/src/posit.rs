@@ -13,8 +13,8 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use crate::{u256, u512, u1024};
 use crate::error::PositDecodeError;
+use crate::{u1024, u256, u512};
 
 macro_rules! construct_posit {
     ($name:ident, $bits:expr, $es:expr, $internal:ident, $zeros: expr, $ones: expr, $nar: expr, $guard:ident, $guard_zero:expr, $guard_max: expr) => {
@@ -66,10 +66,7 @@ macro_rules! construct_posit {
             fn regime<T: Into<i32>>(exp: T) -> (i16, $internal) {
                 let exp = exp.into();
                 let regime = exp >> $es;
-                (
-                    regime as i16,
-                    $internal::from((exp - (regime << $es)) as u8),
-                )
+                (regime as i16, $internal::from((exp - (regime << $es)) as u8))
             }
 
             fn exp(regime: i16, exp: $internal) -> i32 {
@@ -90,14 +87,12 @@ macro_rules! construct_posit {
                 let sign = self.is_negative();
                 let input = self.abs().0 << 1;
                 let (regime, input) = match ((!input).leading_zeros(), input.leading_zeros()) {
-                    (0, zeros) => (
-                        -(zeros as i16),
-                        input.checked_shl(zeros as u32 + 1).unwrap_or($zeros),
-                    ),
-                    (ones, _) => (
-                        (ones - 1) as i16,
-                        input.checked_shl(ones as u32 + 1).unwrap_or($zeros),
-                    ),
+                    (0, zeros) => {
+                        (-(zeros as i16), input.checked_shl(zeros as u32 + 1).unwrap_or($zeros))
+                    }
+                    (ones, _) => {
+                        ((ones - 1) as i16, input.checked_shl(ones as u32 + 1).unwrap_or($zeros))
+                    }
                 };
                 let exp = input.checked_shr($bits - $es).unwrap_or($zeros);
                 let mantissa = input.checked_shl($es).unwrap_or($zeros);
@@ -105,12 +100,7 @@ macro_rules! construct_posit {
             }
 
             pub fn encode(sign: bool, regime: i16, exp: $internal, mantissa: $internal) -> Self {
-                Self::_encode(
-                    sign,
-                    regime,
-                    $guard::from(exp),
-                    $guard::from(mantissa) << $bits,
-                )
+                Self::_encode(sign, regime, $guard::from(exp), $guard::from(mantissa) << $bits)
             }
 
             fn _encode(sign: bool, regime: i16, exp: $guard, mantissa: $guard) -> Self {
@@ -471,42 +461,9 @@ macro_rules! construct_posit {
     };
 }
 
-construct_posit!(
-    Posit8,
-    8,
-    0,
-    u8,
-    0,
-    ::core::u8::MAX,
-    0x80,
-    u16,
-    0,
-    ::core::u16::MAX
-);
-construct_posit!(
-    Posit16,
-    16,
-    1,
-    u16,
-    0,
-    ::core::u16::MAX,
-    0x8000,
-    u32,
-    0,
-    ::core::u32::MAX
-);
-construct_posit!(
-    Posit32,
-    32,
-    2,
-    u32,
-    0,
-    ::core::u32::MAX,
-    0x8000_0000,
-    u64,
-    0,
-    ::core::u64::MAX
-);
+construct_posit!(Posit8, 8, 0, u8, 0, ::core::u8::MAX, 0x80, u16, 0, ::core::u16::MAX);
+construct_posit!(Posit16, 16, 1, u16, 0, ::core::u16::MAX, 0x8000, u32, 0, ::core::u32::MAX);
+construct_posit!(Posit32, 32, 2, u32, 0, ::core::u32::MAX, 0x8000_0000, u64, 0, ::core::u64::MAX);
 construct_posit!(
     Posit64,
     64,
@@ -584,10 +541,7 @@ mod tests {
         let sub = f32::from_bits(0b0000_0000_0000_1000 << 16); //2 ^ (-130)
         assert!(!sub.is_normal());
         // With es = 3, regime is -17 and exp is 6. -17 * 8 + 6 = 130
-        assert_eq!(
-            Posit64::from(sub).into_inner(),
-            0b0000_0000_0000_0000_0011_1000 << 40
-        );
+        assert_eq!(Posit64::from(sub).into_inner(), 0b0000_0000_0000_0000_0011_1000 << 40);
         assert_eq!(f32::from(Posit64::from(sub)), sub);
     }
 
@@ -611,14 +565,8 @@ mod tests {
 
     #[test]
     fn posit256_test() {
-        assert_eq!(
-            Posit256::from(1.).into_inner(),
-            u256::from(0b0100_0000u64) << 248
-        );
-        assert_eq!(
-            Posit256::from(1.125).into_inner(),
-            u256::from(0b0100_0000_0010_0000u64) << 240
-        );
+        assert_eq!(Posit256::from(1.).into_inner(), u256::from(0b0100_0000u64) << 248);
+        assert_eq!(Posit256::from(1.125).into_inner(), u256::from(0b0100_0000_0010_0000u64) << 240);
     }
 
     #[test]
@@ -650,14 +598,8 @@ mod tests {
 
     #[test]
     fn posit_neg_test() {
-        assert_eq!(
-            (-Posit256::from(1.)).into_inner(),
-            Posit256::from(-1.).into_inner(),
-        );
-        assert_eq!(
-            (-Posit256::from(0.)).into_inner(),
-            Posit256::from(0.).into_inner(),
-        );
+        assert_eq!((-Posit256::from(1.)).into_inner(), Posit256::from(-1.).into_inner(),);
+        assert_eq!((-Posit256::from(0.)).into_inner(), Posit256::from(0.).into_inner(),);
     }
 
     #[test]
@@ -705,10 +647,7 @@ mod tests {
         assert_eq!(Ok((false, 1, 1, 0x80)), Posit8Es1::from(12.).decode());
         assert_eq!(Posit16::encode(true, 1, 1, 0x8000u16), Posit16::from(-12.));
         assert_eq!(Ok((true, 1, 1, 0x8000)), Posit16::from(-12.).decode());
-        assert_eq!(
-            Ok((false, 0, 0, 0b00001000)),
-            Posit8::from(1.03125).decode()
-        );
+        assert_eq!(Ok((false, 0, 0, 0b00001000)), Posit8::from(1.03125).decode());
     }
 
     #[test]
@@ -728,24 +667,12 @@ mod tests {
     #[test]
     fn posit_add_test() {
         assert_eq!(Posit16::from(-1.) + Posit16::from(-2.), Posit16::from(-3.));
-        assert_eq!(
-            Posit16::from(-1.) + Posit16::from(2.25),
-            Posit16::from(1.25)
-        );
+        assert_eq!(Posit16::from(-1.) + Posit16::from(2.25), Posit16::from(1.25));
         assert_eq!(Posit16::from(1.) + Posit16::from(2.), Posit16::from(3.));
-        assert_eq!(
-            Posit16::from(16.) + Posit16::from(-64.),
-            Posit16::from(-48.)
-        );
-        assert_eq!(
-            Posit16::from(2.125) + Posit16::from(3.5),
-            Posit16::from(5.625)
-        );
+        assert_eq!(Posit16::from(16.) + Posit16::from(-64.), Posit16::from(-48.));
+        assert_eq!(Posit16::from(2.125) + Posit16::from(3.5), Posit16::from(5.625));
         assert_eq!(Posit16::from(1.3) + Posit16::from(3.0), Posit16::from(4.3));
-        assert_eq!(
-            Posit16::from(1. / 3.) + Posit16::from(1. / 3.),
-            Posit16::from(2. / 3.)
-        );
+        assert_eq!(Posit16::from(1. / 3.) + Posit16::from(1. / 3.), Posit16::from(2. / 3.));
         assert_eq!(Posit16::from(4.) + Posit16::from(0.), Posit16::from(4.));
         assert_eq!(Posit16::from(0.) + Posit16::from(3.), Posit16::from(3.));
         assert_eq!(Posit16::from(0.) + Posit16::from(0.), Posit16::from(0.));
@@ -792,33 +719,18 @@ mod tests {
     #[test]
     fn posit_sub_test() {
         assert_eq!(Posit16::from(-1.) - Posit16::from(-2.), Posit16::from(1.));
-        assert_eq!(
-            Posit16::from(-1.) - Posit16::from(2.25),
-            Posit16::from(-3.25)
-        );
-        assert_eq!(
-            Posit16::from(6.) - Posit16::from(-4.25),
-            Posit16::from(10.25)
-        );
+        assert_eq!(Posit16::from(-1.) - Posit16::from(2.25), Posit16::from(-3.25));
+        assert_eq!(Posit16::from(6.) - Posit16::from(-4.25), Posit16::from(10.25));
         assert_eq!(Posit16::from(1.) - Posit16::from(2.), Posit16::from(-1.));
-        assert_eq!(
-            Posit16::from(2.125) - Posit16::from(3.5),
-            Posit16::from(-1.375)
-        );
+        assert_eq!(Posit16::from(2.125) - Posit16::from(3.5), Posit16::from(-1.375));
     }
 
     #[test]
     fn posit_mul_test() {
         assert_eq!(Posit16::from(2.) * Posit16::from(3.), Posit16::from(6.));
-        assert_eq!(
-            Posit16::from(1.25) * Posit16::from(3.5),
-            Posit16::from(4.375)
-        );
+        assert_eq!(Posit16::from(1.25) * Posit16::from(3.5), Posit16::from(4.375));
         assert_eq!(Posit16::from(-0.5) * Posit16::from(8.), Posit16::from(-4.));
-        assert_eq!(
-            Posit16::from(-16.) * Posit16::from(-16.),
-            Posit16::from(256.)
-        );
+        assert_eq!(Posit16::from(-16.) * Posit16::from(-16.), Posit16::from(256.));
         assert_eq!(Posit16::from(7.) * Posit16::from(0.), Posit16::from(0.));
         assert_eq!(Posit16::NAR * Posit16::from(3.), Posit16::NAR);
         assert_eq!(Posit16::from(0.) * Posit16::NAR, Posit16::NAR);
@@ -829,15 +741,9 @@ mod tests {
         assert_eq!(Posit16::from(1.) / Posit16::from(2.), Posit16::from(0.5));
         assert_eq!(Posit16::from(1.) / Posit16::from(8.), Posit16::from(0.125));
         assert_eq!(Posit32::from(1.) / Posit32::from(8.), Posit32::from(0.125));
-        assert_eq!(
-            Posit32::from(1.) / Posit32::from(64.),
-            Posit32::from(1. / 64.)
-        );
+        assert_eq!(Posit32::from(1.) / Posit32::from(64.), Posit32::from(1. / 64.));
         assert_eq!(Posit8::from(1.75) / Posit8::from(1.), Posit8::from(1.75));
-        assert_eq!(
-            Posit8::from(-3.) / Posit8::from(1.15625),
-            Posit8::from(-2.625)
-        );
+        assert_eq!(Posit8::from(-3.) / Posit8::from(1.15625), Posit8::from(-2.625));
     }
 
     fn rand_posit8(fun: fn(Posit8, Posit8, f32, f32) -> (Posit8, f32)) {

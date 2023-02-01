@@ -13,11 +13,11 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use core::ops::{
-    Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign, Rem, RemAssign, BitAnd,
-    BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Shl, ShlAssign, Shr, ShrAssign,
-};
 use core::convert::TryFrom;
+use core::ops::{
+    Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Div, DivAssign,
+    Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub, SubAssign,
+};
 
 use crate::error::{DivError, OverflowError};
 
@@ -293,54 +293,12 @@ construct_smallint!(
         "1-bit unsigned integer in the range `0..1`. It can be used instead of `bool` when 1-bit \
     numeric (and not boolean) arithmetic is required"
 );
-construct_smallint!(
-    u2,
-    u8,
-    to_u8,
-    2,
-    4,
-    doc = "2-bit unsigned integer in the range `0..4`"
-);
-construct_smallint!(
-    u3,
-    u8,
-    to_u8,
-    3,
-    8,
-    doc = "3-bit unsigned integer in the range `0..8`"
-);
-construct_smallint!(
-    u4,
-    u8,
-    to_u8,
-    4,
-    16,
-    doc = "4-bit unsigned integer in the range `0..16`"
-);
-construct_smallint!(
-    u5,
-    u8,
-    to_u8,
-    5,
-    32,
-    doc = "5-bit unsigned integer in the range `0..32`"
-);
-construct_smallint!(
-    u6,
-    u8,
-    to_u8,
-    6,
-    64,
-    doc = "6-bit unsigned integer in the range `0..64`"
-);
-construct_smallint!(
-    u7,
-    u8,
-    to_u8,
-    7,
-    128,
-    doc = "7-bit unsigned integer in the range `0..128`"
-);
+construct_smallint!(u2, u8, to_u8, 2, 4, doc = "2-bit unsigned integer in the range `0..4`");
+construct_smallint!(u3, u8, to_u8, 3, 8, doc = "3-bit unsigned integer in the range `0..8`");
+construct_smallint!(u4, u8, to_u8, 4, 16, doc = "4-bit unsigned integer in the range `0..16`");
+construct_smallint!(u5, u8, to_u8, 5, 32, doc = "5-bit unsigned integer in the range `0..32`");
+construct_smallint!(u6, u8, to_u8, 6, 64, doc = "6-bit unsigned integer in the range `0..64`");
+construct_smallint!(u7, u8, to_u8, 7, 128, doc = "7-bit unsigned integer in the range `0..128`");
 construct_smallint!(
     u24,
     u32,
@@ -593,10 +551,7 @@ mod test {
     fn smallint_div_rem_0() {
         let u_2 = u2::MAX;
         let u_2_2 = u2::try_from(2).unwrap();
-        let u_2_half = (
-            u2::try_from(u2::MAX / 2).unwrap(),
-            u2::try_from(u2::MAX % 2).unwrap(),
-        );
+        let u_2_half = (u2::try_from(u2::MAX / 2).unwrap(), u2::try_from(u2::MAX % 2).unwrap());
         let u_2_zero = u2::ZERO;
 
         assert_eq!(u2::div_rem(u_2, u_2_2), Ok(u_2_half));

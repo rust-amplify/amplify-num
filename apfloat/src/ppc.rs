@@ -15,7 +15,7 @@ use std::ops::Neg;
 use amplify_num::u256;
 
 use crate::ieee;
-use crate::{Category, ExpInt, Float, FloatConvert, Round, ParseError, Status, StatusAnd};
+use crate::{Category, ExpInt, Float, FloatConvert, ParseError, Round, Status, StatusAnd};
 
 #[must_use]
 #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Debug)]
@@ -177,10 +177,7 @@ where
     const SMALLEST: Self = DoubleFloat(F::SMALLEST, F::ZERO);
 
     fn smallest_normalized() -> Self {
-        DoubleFloat(
-            F::smallest_normalized().scalbn(F::PRECISION as ExpInt),
-            F::ZERO,
-        )
+        DoubleFloat(F::smallest_normalized().scalbn(F::PRECISION as ExpInt), F::ZERO)
     }
 
     // Implement addition, subtraction, multiplication and division based on:

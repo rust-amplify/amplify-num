@@ -16,9 +16,9 @@
 
 //! # Hex encoding and decoding
 
-use core::{fmt, str};
 #[cfg(feature = "alloc")]
-use alloc::{string::String, vec::Vec, format};
+use alloc::{format, string::String, vec::Vec};
+use core::{fmt, str};
 
 /// Hex decoding error
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -265,10 +265,7 @@ mod tests {
         assert_eq!(format!("{:x}", bytes), "0102030405060708090a");
 
         for i in 0..20 {
-            assert_eq!(
-                format!("{:.prec$x}", bytes, prec = i),
-                &"0102030405060708090a"[0..i]
-            );
+            assert_eq!(format!("{:.prec$x}", bytes, prec = i), &"0102030405060708090a"[0..i]);
         }
 
         assert_eq!(format!("{:25x}", bytes), "000000102030405060708090a");
@@ -289,10 +286,7 @@ mod tests {
         assert_eq!(format!("{:x}", bytes), "0a090807060504030201");
 
         for i in 0..20 {
-            assert_eq!(
-                format!("{:.prec$x}", bytes, prec = i),
-                &"0a090807060504030201"[0..i]
-            );
+            assert_eq!(format!("{:.prec$x}", bytes, prec = i), &"0a090807060504030201"[0..i]);
         }
 
         assert_eq!(format!("{:25x}", bytes), "000000a090807060504030201");

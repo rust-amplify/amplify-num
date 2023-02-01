@@ -66,12 +66,12 @@ mod std {
     pub use core::*;
 }
 
-use core::fmt::{self, Display, Formatter};
-use core::cmp::Ordering;
-use core::ops::{Neg, Add, Sub, Mul, Div, Rem};
-use core::ops::{AddAssign, SubAssign, MulAssign, DivAssign, RemAssign};
-use core::str::FromStr;
 use amplify_num::{i256, u256};
+use core::cmp::Ordering;
+use core::fmt::{self, Display, Formatter};
+use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
+use core::ops::{AddAssign, DivAssign, MulAssign, RemAssign, SubAssign};
+use core::str::FromStr;
 
 bitflags! {
     /// IEEE-754R 7: Default exception handling.
