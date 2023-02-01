@@ -47,7 +47,6 @@
 )]
 #![forbid(unsafe_code)]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(not(feature = "std"), feature(alloc))]
 
 extern crate core;
 #[cfg(feature = "alloc")]
@@ -62,7 +61,7 @@ extern crate bitflags;
 #[cfg(not(feature = "std"))]
 mod std {
     #[cfg(feature = "alloc")]
-    pub use alloc::vec;
+    pub use ::alloc::vec;
     pub use core::*;
 }
 
@@ -637,7 +636,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::str::FromStr for $ty<$t>
+        impl<$t> ::core::str::FromStr for $ty<$t>
         where
             Self: Float,
         {
@@ -649,7 +648,7 @@ macro_rules! float_common_impls {
 
         // Rounding ties to the nearest even, by default.
 
-        impl<$t> ::std::ops::Add for $ty<$t>
+        impl<$t> ::core::ops::Add for $ty<$t>
         where
             Self: Float,
         {
@@ -659,7 +658,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::Sub for $ty<$t>
+        impl<$t> ::core::ops::Sub for $ty<$t>
         where
             Self: Float,
         {
@@ -669,7 +668,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::Mul for $ty<$t>
+        impl<$t> ::core::ops::Mul for $ty<$t>
         where
             Self: Float,
         {
@@ -679,7 +678,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::Div for $ty<$t>
+        impl<$t> ::core::ops::Div for $ty<$t>
         where
             Self: Float,
         {
@@ -689,7 +688,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::Rem for $ty<$t>
+        impl<$t> ::core::ops::Rem for $ty<$t>
         where
             Self: Float,
         {
@@ -699,7 +698,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::AddAssign for $ty<$t>
+        impl<$t> ::core::ops::AddAssign for $ty<$t>
         where
             Self: Float,
         {
@@ -708,7 +707,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::SubAssign for $ty<$t>
+        impl<$t> ::core::ops::SubAssign for $ty<$t>
         where
             Self: Float,
         {
@@ -717,7 +716,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::MulAssign for $ty<$t>
+        impl<$t> ::core::ops::MulAssign for $ty<$t>
         where
             Self: Float,
         {
@@ -726,7 +725,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::DivAssign for $ty<$t>
+        impl<$t> ::core::ops::DivAssign for $ty<$t>
         where
             Self: Float,
         {
@@ -735,7 +734,7 @@ macro_rules! float_common_impls {
             }
         }
 
-        impl<$t> ::std::ops::RemAssign for $ty<$t>
+        impl<$t> ::core::ops::RemAssign for $ty<$t>
         where
             Self: Float,
         {

@@ -8,12 +8,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cmp::{self, Ordering};
-use std::fmt::{self, Write};
-use std::marker::PhantomData;
-use std::mem;
-use std::ops::Neg;
-#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+use core::cmp::{self, Ordering};
+use core::fmt::{self, Write};
+use core::marker::PhantomData;
+use core::mem;
+use core::ops::Neg;
+#[cfg(all(feature = "std", not(feature = "alloc")))]
 use std::vec::Vec;
 
 use amplify_num::u256;
@@ -2334,9 +2336,10 @@ impl Loss {
 /// arithmetic. As a rule of thumb, no functions in this module should
 /// dynamically allocate.
 mod sig {
+    use core::cmp::Ordering;
+    use core::mem;
+
     use super::{limbs_for_bits, ExpInt, Limb, Loss, LIMB_BITS};
-    use std::cmp::Ordering;
-    use std::mem;
 
     pub(super) fn is_all_zeros(limbs: &[Limb]) -> bool {
         limbs.iter().all(|&l| l.is_zero())

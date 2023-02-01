@@ -8,9 +8,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cmp::Ordering;
-use std::fmt;
-use std::ops::Neg;
+use core::cmp::Ordering;
+use core::fmt;
+use core::ops::Neg;
 
 use amplify_num::u256;
 
