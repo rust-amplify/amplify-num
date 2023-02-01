@@ -286,7 +286,7 @@ macro_rules! impl_op {
 construct_smallint!(
     u1,
     u8,
-    as_u8,
+    into_u8,
     1,
     2,
     doc =
@@ -296,7 +296,7 @@ construct_smallint!(
 construct_smallint!(
     u2,
     u8,
-    as_u8,
+    to_u8,
     2,
     4,
     doc = "2-bit unsigned integer in the range `0..4`"
@@ -304,7 +304,7 @@ construct_smallint!(
 construct_smallint!(
     u3,
     u8,
-    as_u8,
+    to_u8,
     3,
     8,
     doc = "3-bit unsigned integer in the range `0..8`"
@@ -312,7 +312,7 @@ construct_smallint!(
 construct_smallint!(
     u4,
     u8,
-    as_u8,
+    to_u8,
     4,
     16,
     doc = "4-bit unsigned integer in the range `0..16`"
@@ -320,7 +320,7 @@ construct_smallint!(
 construct_smallint!(
     u5,
     u8,
-    as_u8,
+    to_u8,
     5,
     32,
     doc = "5-bit unsigned integer in the range `0..32`"
@@ -328,7 +328,7 @@ construct_smallint!(
 construct_smallint!(
     u6,
     u8,
-    as_u8,
+    to_u8,
     6,
     64,
     doc = "6-bit unsigned integer in the range `0..64`"
@@ -336,7 +336,7 @@ construct_smallint!(
 construct_smallint!(
     u7,
     u8,
-    as_u8,
+    to_u8,
     7,
     128,
     doc = "7-bit unsigned integer in the range `0..128`"
@@ -344,7 +344,7 @@ construct_smallint!(
 construct_smallint!(
     u24,
     u32,
-    as_u32,
+    to_u32,
     24,
     1u32 << 24,
     doc = "24-bit unsigned integer in the range `0..16_777_216`"
@@ -450,13 +450,13 @@ mod test {
 
     #[test]
     fn ubit_test() {
-        let mut u_2 = u2::try_from(u2::MAX.as_u8()).unwrap();
-        let mut u_3 = u3::try_from(u3::MAX.as_u8()).unwrap();
-        let mut u_4 = u4::try_from(u4::MAX.as_u8()).unwrap();
-        let mut u_5 = u5::try_from(u5::MAX.as_u8()).unwrap();
-        let mut u_6 = u6::try_from(u6::MAX.as_u8()).unwrap();
-        let mut u_7 = u7::try_from(u7::MAX.as_u8()).unwrap();
-        let mut u_24 = u24::try_from(u24::MAX.as_u32()).unwrap();
+        let mut u_2 = u2::try_from(u2::MAX.to_u8()).unwrap();
+        let mut u_3 = u3::try_from(u3::MAX.to_u8()).unwrap();
+        let mut u_4 = u4::try_from(u4::MAX.to_u8()).unwrap();
+        let mut u_5 = u5::try_from(u5::MAX.to_u8()).unwrap();
+        let mut u_6 = u6::try_from(u6::MAX.to_u8()).unwrap();
+        let mut u_7 = u7::try_from(u7::MAX.to_u8()).unwrap();
+        let mut u_24 = u24::try_from(u24::MAX.to_u32()).unwrap();
 
         assert_eq!(u_2, u2::with(3));
         assert_eq!(u_3, u3::with(7));
@@ -465,13 +465,13 @@ mod test {
         assert_eq!(u_6, u6::with(63));
         assert_eq!(u_7, u7::with(127));
 
-        assert_eq!(u_2.as_u8(), 3u8);
-        assert_eq!(u_3.as_u8(), 7u8);
-        assert_eq!(u_4.as_u8(), 15u8);
-        assert_eq!(u_5.as_u8(), 31u8);
-        assert_eq!(u_6.as_u8(), 63u8);
-        assert_eq!(u_7.as_u8(), 127u8);
-        assert_eq!(u_24.as_u32(), (1 << 24) - 1);
+        assert_eq!(u_2.to_u8(), 3u8);
+        assert_eq!(u_3.to_u8(), 7u8);
+        assert_eq!(u_4.to_u8(), 15u8);
+        assert_eq!(u_5.to_u8(), 31u8);
+        assert_eq!(u_6.to_u8(), 63u8);
+        assert_eq!(u_7.to_u8(), 127u8);
+        assert_eq!(u_24.to_u32(), (1 << 24) - 1);
 
         u_2 -= 1;
         u_3 -= 1;
@@ -481,13 +481,13 @@ mod test {
         u_7 -= 1;
         u_24 -= 1u32;
 
-        assert_eq!(u_2.as_u8(), 2u8);
-        assert_eq!(u_3.as_u8(), 6u8);
-        assert_eq!(u_4.as_u8(), 14u8);
-        assert_eq!(u_5.as_u8(), 30u8);
-        assert_eq!(u_6.as_u8(), 62u8);
-        assert_eq!(u_7.as_u8(), 126u8);
-        assert_eq!(u_24.as_u32(), (1 << 24) - 2);
+        assert_eq!(u_2.to_u8(), 2u8);
+        assert_eq!(u_3.to_u8(), 6u8);
+        assert_eq!(u_4.to_u8(), 14u8);
+        assert_eq!(u_5.to_u8(), 30u8);
+        assert_eq!(u_6.to_u8(), 62u8);
+        assert_eq!(u_7.to_u8(), 126u8);
+        assert_eq!(u_24.to_u32(), (1 << 24) - 2);
 
         u_2 /= 2;
         u_2 *= 2;
@@ -517,21 +517,21 @@ mod test {
         u_24 *= 2u32;
         u_24 += 1u32;
 
-        assert_eq!(u_2.as_u8(), 3u8);
-        assert_eq!(u_3.as_u8(), 7u8);
-        assert_eq!(u_4.as_u8(), 15u8);
-        assert_eq!(u_5.as_u8(), 31u8);
-        assert_eq!(u_6.as_u8(), 63u8);
-        assert_eq!(u_7.as_u8(), 127u8);
-        assert_eq!(u_24.as_u32(), (1 << 24) - 1);
+        assert_eq!(u_2.to_u8(), 3u8);
+        assert_eq!(u_3.to_u8(), 7u8);
+        assert_eq!(u_4.to_u8(), 15u8);
+        assert_eq!(u_5.to_u8(), 31u8);
+        assert_eq!(u_6.to_u8(), 63u8);
+        assert_eq!(u_7.to_u8(), 127u8);
+        assert_eq!(u_24.to_u32(), (1 << 24) - 1);
 
-        assert_eq!(u_2.as_u8() % 2, 1);
-        assert_eq!(u_3.as_u8() % 2, 1);
-        assert_eq!(u_4.as_u8() % 2, 1);
-        assert_eq!(u_5.as_u8() % 2, 1);
-        assert_eq!(u_6.as_u8() % 2, 1);
-        assert_eq!(u_7.as_u8() % 2, 1);
-        assert_eq!(u_24.as_u32() % 2, 1);
+        assert_eq!(u_2.to_u8() % 2, 1);
+        assert_eq!(u_3.to_u8() % 2, 1);
+        assert_eq!(u_4.to_u8() % 2, 1);
+        assert_eq!(u_5.to_u8() % 2, 1);
+        assert_eq!(u_6.to_u8() % 2, 1);
+        assert_eq!(u_7.to_u8() % 2, 1);
+        assert_eq!(u_24.to_u32() % 2, 1);
     }
 
     #[test]
@@ -581,12 +581,12 @@ mod test {
         let val: u32 = 0x00adbeef;
         let le = [0xef, 0xbe, 0xad];
         let v1 = u24::with(val);
-        assert_eq!(v1.as_u32(), val);
+        assert_eq!(v1.to_u32(), val);
         assert_eq!(v1.to_le_bytes(), le);
         let v2 = u24::from_le_bytes(le);
         assert_eq!(v2.to_le_bytes(), le);
         assert_eq!(v2, v1);
-        assert_eq!(v2.as_u32(), v1.as_u32());
+        assert_eq!(v2.to_u32(), v1.to_u32());
     }
 
     #[test]
