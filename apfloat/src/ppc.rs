@@ -14,8 +14,7 @@ use core::ops::Neg;
 
 use amplify_num::u256;
 
-use crate::ieee;
-use crate::{Category, ExpInt, Float, FloatConvert, ParseError, Round, Status, StatusAnd};
+use crate::{ieee, Category, ExpInt, Float, FloatConvert, ParseError, Round, Status, StatusAnd};
 
 #[must_use]
 #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Debug)]
@@ -142,8 +141,7 @@ impl<F: FloatConvert<Fallback<F>>> fmt::Display for DoubleFloat<F> {
 }
 
 impl<F: FloatConvert<Fallback<F>>> Float for DoubleFloat<F>
-where
-    Self: From<Fallback<F>>,
+where Self: From<Fallback<F>>
 {
     const BITS: usize = F::BITS * 2;
     const PRECISION: usize = Fallback::<F>::PRECISION;
@@ -157,13 +155,9 @@ where
     // FIXME(eddyb) remove when qnan becomes const fn.
     const NAN: Self = DoubleFloat(F::NAN, F::ZERO);
 
-    fn qnan(payload: Option<u256>) -> Self {
-        DoubleFloat(F::qnan(payload), F::ZERO)
-    }
+    fn qnan(payload: Option<u256>) -> Self { DoubleFloat(F::qnan(payload), F::ZERO) }
 
-    fn snan(payload: Option<u256>) -> Self {
-        DoubleFloat(F::snan(payload), F::ZERO)
-    }
+    fn snan(payload: Option<u256>) -> Self { DoubleFloat(F::snan(payload), F::ZERO) }
 
     fn largest() -> Self {
         let status;
@@ -368,9 +362,7 @@ where
             .map(Self::from)
     }
 
-    fn next_up(self) -> StatusAnd<Self> {
-        Fallback::from(self).next_up().map(Self::from)
-    }
+    fn next_up(self) -> StatusAnd<Self> { Fallback::from(self).next_up().map(Self::from) }
 
     fn from_bits(input: u256) -> Self {
         let (a, b) = (input, input >> F::BITS);
@@ -388,9 +380,7 @@ where
         Fallback::from_str_r(s, round).map(|r| r.map(Self::from))
     }
 
-    fn to_bits(self) -> u256 {
-        self.0.to_bits() | (self.1.to_bits() << F::BITS)
-    }
+    fn to_bits(self) -> u256 { self.0.to_bits() | (self.1.to_bits() << F::BITS) }
 
     fn to_u256_r(self, width: usize, round: Round, is_exact: &mut bool) -> StatusAnd<u256> {
         Fallback::from(self).to_u256_r(width, round, is_exact)
@@ -402,49 +392,35 @@ where
             if result != Ordering::Equal {
                 let against = self.0.is_negative() ^ self.1.is_negative();
                 let rhs_against = rhs.0.is_negative() ^ rhs.1.is_negative();
-                (!against).cmp(&!rhs_against).then_with(|| {
-                    if against {
-                        result.reverse()
-                    } else {
-                        result
-                    }
-                })
+                (!against)
+                    .cmp(&!rhs_against)
+                    .then_with(|| if against { result.reverse() } else { result })
             } else {
                 result
             }
         })
     }
 
-    fn bitwise_eq(self, rhs: Self) -> bool {
-        self.0.bitwise_eq(rhs.0) && self.1.bitwise_eq(rhs.1)
-    }
+    fn bitwise_eq(self, rhs: Self) -> bool { self.0.bitwise_eq(rhs.0) && self.1.bitwise_eq(rhs.1) }
 
-    fn is_negative(self) -> bool {
-        self.0.is_negative()
-    }
+    fn is_negative(self) -> bool { self.0.is_negative() }
 
     fn is_denormal(self) -> bool {
-        self.category() == Category::Normal
-            && (self.0.is_denormal() || self.0.is_denormal() ||
+        self.category() == Category::Normal &&
+            (self.0.is_denormal() || self.0.is_denormal() ||
           // (double)(Hi + Lo) == Hi defines a normal number.
           !(self.0 + self.1).value.bitwise_eq(self.0))
     }
 
-    fn is_signaling(self) -> bool {
-        self.0.is_signaling()
-    }
+    fn is_signaling(self) -> bool { self.0.is_signaling() }
 
-    fn category(self) -> Category {
-        self.0.category()
-    }
+    fn category(self) -> Category { self.0.category() }
 
     fn get_exact_inverse(self) -> Option<Self> {
         Fallback::from(self).get_exact_inverse().map(Self::from)
     }
 
-    fn ilogb(self) -> ExpInt {
-        self.0.ilogb()
-    }
+    fn ilogb(self) -> ExpInt { self.0.ilogb() }
 
     fn scalbn_r(self, exp: ExpInt, round: Round) -> Self {
         DoubleFloat(self.0.scalbn_r(exp, round), self.1.scalbn_r(exp, round))

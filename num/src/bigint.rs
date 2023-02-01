@@ -44,21 +44,15 @@ macro_rules! construct_bigint {
 
             #[inline]
             /// Returns the underlying array of words constituting large integer
-            pub const fn as_inner(&self) -> &[u64; $n_words] {
-                &self.0
-            }
+            pub const fn as_inner(&self) -> &[u64; $n_words] { &self.0 }
 
             #[inline]
             /// Returns the underlying array of words constituting large integer
-            pub const fn into_inner(self) -> [u64; $n_words] {
-                self.0
-            }
+            pub const fn into_inner(self) -> [u64; $n_words] { self.0 }
 
             #[inline]
             /// Constructs integer type from the underlying array of words.
-            pub const fn from_inner(array: [u64; $n_words]) -> Self {
-                Self(array)
-            }
+            pub const fn from_inner(array: [u64; $n_words]) -> Self { Self(array) }
         }
 
         impl $name {
@@ -155,14 +149,10 @@ macro_rules! construct_bigint {
             }
 
             #[inline]
-            pub fn is_zero(&self) -> bool {
-                self[..] == [0; $n_words]
-            }
+            pub fn is_zero(&self) -> bool { self[..] == [0; $n_words] }
 
             #[inline]
-            pub fn is_positive(&self) -> bool {
-                !self.is_negative() && !self.is_zero()
-            }
+            pub fn is_positive(&self) -> bool { !self.is_negative() && !self.is_zero() }
 
             #[inline]
             pub fn abs(self) -> $name {
@@ -385,45 +375,35 @@ macro_rules! construct_bigint {
             type Output = u64;
 
             #[inline]
-            fn index(&self, index: usize) -> &u64 {
-                &self.0[index]
-            }
+            fn index(&self, index: usize) -> &u64 { &self.0[index] }
         }
 
         impl ::core::ops::Index<::core::ops::Range<usize>> for $name {
             type Output = [u64];
 
             #[inline]
-            fn index(&self, index: ::core::ops::Range<usize>) -> &[u64] {
-                &self.0[index]
-            }
+            fn index(&self, index: ::core::ops::Range<usize>) -> &[u64] { &self.0[index] }
         }
 
         impl ::core::ops::Index<::core::ops::RangeTo<usize>> for $name {
             type Output = [u64];
 
             #[inline]
-            fn index(&self, index: ::core::ops::RangeTo<usize>) -> &[u64] {
-                &self.0[index]
-            }
+            fn index(&self, index: ::core::ops::RangeTo<usize>) -> &[u64] { &self.0[index] }
         }
 
         impl ::core::ops::Index<::core::ops::RangeFrom<usize>> for $name {
             type Output = [u64];
 
             #[inline]
-            fn index(&self, index: ::core::ops::RangeFrom<usize>) -> &[u64] {
-                &self.0[index]
-            }
+            fn index(&self, index: ::core::ops::RangeFrom<usize>) -> &[u64] { &self.0[index] }
         }
 
         impl ::core::ops::Index<::core::ops::RangeFull> for $name {
             type Output = [u64];
 
             #[inline]
-            fn index(&self, _: ::core::ops::RangeFull) -> &[u64] {
-                &self.0[..]
-            }
+            fn index(&self, _: ::core::ops::RangeFull) -> &[u64] { &self.0[..] }
         }
 
         impl PartialOrd for $name {
@@ -480,29 +460,17 @@ macro_rules! construct_bigint {
             /// Checked integer addition. Computes `self + rhs`, returning `None` if
             /// overflow occurred.
             pub fn checked_add<T>(self, other: T) -> Option<$name>
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let (res, flag) = self.overflowing_add(other);
-                if flag {
-                    None
-                } else {
-                    Some(res)
-                }
+                if flag { None } else { Some(res) }
             }
 
             /// Saturating integer addition. Computes `self + rhs`, saturating at the
             /// numeric bounds instead of overflowing.
             pub fn saturating_add<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let (res, flag) = self.overflowing_add(other);
-                if flag {
-                    Self::MAX
-                } else {
-                    res
-                }
+                if flag { Self::MAX } else { res }
             }
 
             /// Calculates `self + rhs`
@@ -511,9 +479,7 @@ macro_rules! construct_bigint {
             /// an arithmetic overflow would occur. If an overflow would have occurred
             /// then the wrapped value is returned.
             pub fn overflowing_add<T>(self, other: T) -> ($name, bool)
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let $name(ref me) = self;
                 let other = other.into();
                 let $name(ref you) = other;
@@ -530,10 +496,10 @@ macro_rules! construct_bigint {
                 let overflow = if !Self::IS_SIGNED_TYPE {
                     carry > 0
                 } else {
-                    self != Self::MIN
-                        && other != Self::MIN
-                        && (self.is_negative() == other.is_negative())
-                        && (self.is_negative() != ret.is_negative())
+                    self != Self::MIN &&
+                        other != Self::MIN &&
+                        (self.is_negative() == other.is_negative()) &&
+                        (self.is_negative() != ret.is_negative())
                 };
                 (ret, overflow)
             }
@@ -541,38 +507,24 @@ macro_rules! construct_bigint {
             /// Wrapping (modular) addition. Computes `self + rhs`, wrapping around at
             /// the boundary of the type.
             pub fn wrapping_add<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.overflowing_add(other).0
             }
 
             /// Checked integer subtraction. Computes `self - rhs`, returning `None` if
             /// overflow occurred.
             pub fn checked_sub<T>(self, other: T) -> Option<$name>
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let (res, flag) = self.overflowing_sub(other);
-                if flag {
-                    None
-                } else {
-                    Some(res)
-                }
+                if flag { None } else { Some(res) }
             }
 
             /// Saturating integer subtraction. Computes `self - rhs`, saturating at the
             /// numeric bounds instead of overflowing.
             pub fn saturating_sub<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let (res, flag) = self.overflowing_sub(other);
-                if flag {
-                    Self::MAX
-                } else {
-                    res
-                }
+                if flag { Self::MAX } else { res }
             }
 
             /// Calculates `self - rhs`
@@ -581,9 +533,7 @@ macro_rules! construct_bigint {
             /// whether an arithmetic overflow would occur. If an overflow would
             /// have occurred then the wrapped value is returned.
             pub fn overflowing_sub<T>(self, other: T) -> ($name, bool)
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let other = other.into();
                 if !Self::IS_SIGNED_TYPE {
                     (self.wrapping_add(!other).wrapping_add($name::ONE), self < other)
@@ -595,46 +545,30 @@ macro_rules! construct_bigint {
             /// Wrapping (modular) subtraction. Computes `self - rhs`, wrapping around
             /// at the boundary of the type.
             pub fn wrapping_sub<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.overflowing_sub(other).0
             }
 
             /// Checked integer multiplication. Computes `self * rhs`, returning `None`
             /// if overflow occurred.
             pub fn checked_mul<T>(self, other: T) -> Option<$name>
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let (res, flag) = self.overflowing_mul(other);
-                if flag {
-                    None
-                } else {
-                    Some(res)
-                }
+                if flag { None } else { Some(res) }
             }
 
             /// Saturating integer multiplication. Computes `self * rhs`, saturating at
             /// the numeric bounds instead of overflowing.
             pub fn saturating_mul<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let (res, flag) = self.overflowing_mul(other);
-                if flag {
-                    Self::MAX
-                } else {
-                    res
-                }
+                if flag { Self::MAX } else { res }
             }
 
             /// Wrapping (modular) multiplication. Computes `self * rhs`, wrapping
             /// around at the boundary of the type.
             pub fn wrapping_mul<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.overflowing_mul(other).0
             }
 
@@ -644,9 +578,7 @@ macro_rules! construct_bigint {
             /// whether an arithmetic overflow would occur. If an overflow would
             /// have occurred then the wrapped value is returned.
             pub fn overflowing_div<T>(self, other: T) -> ($name, bool)
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let rhs = other.into();
                 match self.div_rem(rhs) {
                     Err(DivError::Overflow) => (Self::MIN, true),
@@ -663,27 +595,21 @@ macro_rules! construct_bigint {
             /// too large to represent in the type.
             /// In such a case, this function returns MIN itself.
             pub fn wrapping_div<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.overflowing_div(other.into()).0
             }
 
             /// Checked integer division. Computes `self / rhs`,
             /// returning None if `rhs == 0` or the division results in overflow.
             pub fn checked_div<T>(self, other: T) -> Option<$name>
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.div_rem(other.into()).ok().map(|(q, _)| q)
             }
 
             /// Saturating integer division. Computes `self / rhs`,
             /// saturating at the numeric bounds instead of overflowing.
             pub fn saturating_div<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let rhs = other.into();
                 match self.div_rem(rhs) {
                     Err(DivError::Overflow) => Self::MAX,
@@ -697,9 +623,7 @@ macro_rules! construct_bigint {
             /// indicating whether an arithmetic overflow would occur.
             /// If an overflow would occur then 0 is returned.
             pub fn overflowing_rem<T>(self, other: T) -> ($name, bool)
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let rhs = other.into();
                 match self.div_rem(rhs) {
                     Err(DivError::Overflow) => (Self::ZERO, true),
@@ -715,18 +639,14 @@ macro_rules! construct_bigint {
             /// on a signed type (where MIN is the negative minimal value).
             /// In such a case, this function returns 0.
             pub fn wrapping_rem<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.overflowing_rem(other.into()).0
             }
 
             /// Checked integer remainder. Computes `self % rhs`,
             /// returning None if `rhs == 0` or the division results in overflow.
             pub fn checked_rem<T>(self, other: T) -> Option<$name>
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.div_rem(other.into()).ok().map(|(_, r)| r)
             }
 
@@ -740,9 +660,7 @@ macro_rules! construct_bigint {
             /// this is equal to round towards zero (the default in Rust);
             /// if `self < 0`, this is equal to round towards +/- infinity.
             pub fn div_euclid<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.div_rem_euclid(other.into())
                     .expect("Error occurred during bigint division")
                     .0
@@ -754,9 +672,7 @@ macro_rules! construct_bigint {
             /// whether an arithmetic overflow would occur.
             /// If an overflow would occur then `self` is returned.
             pub fn overflowing_div_euclid<T>(self, other: T) -> ($name, bool)
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 match self.div_rem_euclid(other.into()) {
                     Err(DivError::Overflow) => (Self::MIN, true),
                     res => (res.expect("Error occurred during bigint division").0, false),
@@ -772,18 +688,14 @@ macro_rules! construct_bigint {
             /// that is too large to represent in the type.
             /// In this case, this method returns `MIN` itself.
             pub fn wrapping_div_euclid<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.overflowing_div_euclid(other.into()).0
             }
 
             /// Checked Euclidean division. Computes `self.div_euclid(rhs)`,
             /// returning None if `rhs == 0` or the division results in overflow.
             pub fn checked_div_euclid<T>(self, other: T) -> Option<$name>
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.div_rem_euclid(other.into()).ok().map(|(q, _)| q)
             }
 
@@ -793,9 +705,7 @@ macro_rules! construct_bigint {
             /// given `r = self.rem_euclid(rhs)`, `self = rhs * self.div_euclid(rhs) +
             /// r`, and `0 <= r < abs(rhs)`.
             pub fn rem_euclid<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.div_rem_euclid(other.into())
                     .expect("Error occurred during bigint division")
                     .1
@@ -807,9 +717,7 @@ macro_rules! construct_bigint {
             /// indicating whether an arithmetic overflow would occur.
             /// If an overflow would occur then 0 is returned.
             pub fn overflowing_rem_euclid<T>(self, other: T) -> ($name, bool)
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 match self.div_rem_euclid(other.into()) {
                     Err(DivError::Overflow) => (Self::ZERO, true),
                     res => (res.expect("Error occurred during bigint division").1, false),
@@ -823,18 +731,14 @@ macro_rules! construct_bigint {
             /// (where `MIN` is the negative minimal value for the type).
             /// In this case, this method returns 0.
             pub fn wrapping_rem_euclid<T>(self, other: T) -> $name
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.overflowing_rem_euclid(other.into()).0
             }
 
             /// Checked Euclidean remainder. Computes `self.rem_euclid(rhs)`,
             /// returning None if `rhs == 0` or the division results in overflow.
             pub fn checked_rem_euclid<T>(self, other: T) -> Option<$name>
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 self.div_rem_euclid(other.into()).ok().map(|(_, r)| r)
             }
 
@@ -866,14 +770,11 @@ macro_rules! construct_bigint {
             /// the result is the same as casting the corresponding signed value.
             /// Any larger values are equivalent to MAX + 1 - (val - MAX - 1)
             /// where MAX is the corresponding signed type's maximum.
-            pub fn wrapping_neg(self) -> $name {
-                (!self).wrapping_add(Self::ONE)
-            }
+            pub fn wrapping_neg(self) -> $name { (!self).wrapping_add(Self::ONE) }
         }
 
         impl<T> ::core::ops::Add<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
 
@@ -884,18 +785,14 @@ macro_rules! construct_bigint {
             }
         }
         impl<T> ::core::ops::AddAssign<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             #[inline]
-            fn add_assign(&mut self, rhs: T) {
-                self.0 = (*self + rhs).0
-            }
+            fn add_assign(&mut self, rhs: T) { self.0 = (*self + rhs).0 }
         }
 
         impl<T> ::core::ops::Sub<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
 
@@ -907,18 +804,14 @@ macro_rules! construct_bigint {
             }
         }
         impl<T> ::core::ops::SubAssign<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             #[inline]
-            fn sub_assign(&mut self, rhs: T) {
-                self.0 = (*self - rhs).0
-            }
+            fn sub_assign(&mut self, rhs: T) { self.0 = (*self - rhs).0 }
         }
 
         impl<T> ::core::ops::Mul<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
 
@@ -929,18 +822,14 @@ macro_rules! construct_bigint {
             }
         }
         impl<T> ::core::ops::MulAssign<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             #[inline]
-            fn mul_assign(&mut self, rhs: T) {
-                self.0 = (*self * rhs).0
-            }
+            fn mul_assign(&mut self, rhs: T) { self.0 = (*self * rhs).0 }
         }
 
         impl<T> ::core::ops::Div<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
 
@@ -951,18 +840,14 @@ macro_rules! construct_bigint {
             }
         }
         impl<T> ::core::ops::DivAssign<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             #[inline]
-            fn div_assign(&mut self, rhs: T) {
-                self.0 = (*self / rhs).0
-            }
+            fn div_assign(&mut self, rhs: T) { self.0 = (*self / rhs).0 }
         }
 
         impl<T> ::core::ops::Rem<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
 
@@ -973,18 +858,14 @@ macro_rules! construct_bigint {
             }
         }
         impl<T> ::core::ops::RemAssign<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             #[inline]
-            fn rem_assign(&mut self, rhs: T) {
-                self.0 = (*self % rhs).0
-            }
+            fn rem_assign(&mut self, rhs: T) { self.0 = (*self % rhs).0 }
         }
 
         impl<T> ::core::ops::BitAnd<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
 
@@ -1000,18 +881,14 @@ macro_rules! construct_bigint {
             }
         }
         impl<T> ::core::ops::BitAndAssign<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             #[inline]
-            fn bitand_assign(&mut self, rhs: T) {
-                self.0 = (*self & rhs).0
-            }
+            fn bitand_assign(&mut self, rhs: T) { self.0 = (*self & rhs).0 }
         }
 
         impl<T> ::core::ops::BitXor<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
 
@@ -1027,18 +904,14 @@ macro_rules! construct_bigint {
             }
         }
         impl<T> ::core::ops::BitXorAssign<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             #[inline]
-            fn bitxor_assign(&mut self, rhs: T) {
-                self.0 = (*self ^ rhs).0
-            }
+            fn bitxor_assign(&mut self, rhs: T) { self.0 = (*self ^ rhs).0 }
         }
 
         impl<T> ::core::ops::BitOr<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
 
@@ -1054,13 +927,10 @@ macro_rules! construct_bigint {
             }
         }
         impl<T> ::core::ops::BitOrAssign<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             #[inline]
-            fn bitor_assign(&mut self, rhs: T) {
-                self.0 = (*self | rhs).0
-            }
+            fn bitor_assign(&mut self, rhs: T) { self.0 = (*self | rhs).0 }
         }
 
         impl ::core::ops::Shl<usize> for $name {
@@ -1086,9 +956,7 @@ macro_rules! construct_bigint {
         }
         impl ::core::ops::ShlAssign<usize> for $name {
             #[inline]
-            fn shl_assign(&mut self, rhs: usize) {
-                self.0 = (*self << rhs).0
-            }
+            fn shl_assign(&mut self, rhs: usize) { self.0 = (*self << rhs).0 }
         }
 
         impl ::core::ops::Shr<usize> for $name {
@@ -1116,9 +984,7 @@ macro_rules! construct_bigint {
 
         impl ::core::ops::ShrAssign<usize> for $name {
             #[inline]
-            fn shr_assign(&mut self, rhs: usize) {
-                self.0 = (*self >> rhs).0
-            }
+            fn shr_assign(&mut self, rhs: usize) { self.0 = (*self >> rhs).0 }
         }
 
         impl ::core::ops::Not for $name {
@@ -1301,9 +1167,7 @@ macro_rules! construct_bigint {
         #[cfg(feature = "serde")]
         impl $crate::serde::Serialize for $name {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: $crate::serde::Serializer,
-            {
+            where S: $crate::serde::Serializer {
                 use $crate::hex::ToHex;
                 let bytes = self.to_be_bytes();
                 if serializer.is_human_readable() {
@@ -1336,9 +1200,7 @@ macro_rules! construct_bigint {
                     }
 
                     fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-                    where
-                        E: de::Error,
-                    {
+                    where E: de::Error {
                         let bytes = Vec::from_hex(s)
                             .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(s), &self))?;
                         $name::from_be_slice(&bytes)
@@ -1346,9 +1208,7 @@ macro_rules! construct_bigint {
                     }
 
                     fn visit_bytes<E>(self, bytes: &[u8]) -> Result<Self::Value, E>
-                    where
-                        E: de::Error,
-                    {
+                    where E: de::Error {
                         $name::from_be_slice(bytes)
                             .map_err(|_| de::Error::invalid_length(bytes.len(), &self))
                     }
@@ -1365,7 +1225,7 @@ macro_rules! construct_bigint {
 }
 
 macro_rules! construct_signed_bigint_methods {
-    ( $ name: ident, $ n_words: expr ) => {
+    ($name:ident, $n_words:expr) => {
         impl From<i8> for $name {
             fn from(init: i8) -> $name {
                 let bytes = init.to_le_bytes();
@@ -1470,8 +1330,8 @@ macro_rules! construct_signed_bigint_methods {
                 let iter = arr.iter().rev().take($n_words - 1);
                 if self.is_negative() {
                     let ctr = iter.take_while(|&&b| b == ::core::u64::MAX).count();
-                    (0x40 * ($n_words - ctr)) + 1
-                        - (!arr[$n_words - ctr - 1]).leading_zeros() as usize
+                    (0x40 * ($n_words - ctr)) + 1 -
+                        (!arr[$n_words - ctr - 1]).leading_zeros() as usize
                 } else {
                     let ctr = iter.take_while(|&&b| b == ::core::u64::MIN).count();
                     (0x40 * ($n_words - ctr)) + 1 - arr[$n_words - ctr - 1].leading_zeros() as usize
@@ -1484,9 +1344,7 @@ macro_rules! construct_signed_bigint_methods {
             /// whether an arithmetic overflow would occur. If an overflow would
             /// have occurred then the wrapped value is returned.
             pub fn overflowing_mul<T>(self, other: T) -> ($name, bool)
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let sub = if self != $name::MIN { -self } else { self };
                 let mut p_high = $name::ZERO;
                 let mut p_low = other.into();
@@ -1516,7 +1374,7 @@ macro_rules! construct_signed_bigint_methods {
 }
 
 macro_rules! construct_unsigned_bigint_methods {
-    ( $ name: ident, $ n_words: expr ) => {
+    ($name:ident, $n_words:expr) => {
         impl $name {
             const IS_SIGNED_TYPE: bool = false;
 
@@ -1527,9 +1385,7 @@ macro_rules! construct_unsigned_bigint_methods {
             pub const MAX: $name = $name([::core::u64::MAX; $n_words]);
 
             #[inline]
-            pub const fn is_negative(&self) -> bool {
-                false
-            }
+            pub const fn is_negative(&self) -> bool { false }
 
             /// Return the least number of bits needed to represent the number
             #[inline]
@@ -1546,9 +1402,7 @@ macro_rules! construct_unsigned_bigint_methods {
             /// whether an arithmetic overflow would occur. If an overflow would
             /// have occurred then the wrapped value is returned.
             pub fn overflowing_mul<T>(self, other: T) -> ($name, bool)
-            where
-                T: Into<$name>,
-            {
+            where T: Into<$name> {
                 let $name(ref me) = self;
                 let $name(ref you) = other.into();
                 let mut ret = [0u64; $n_words];
@@ -1584,7 +1438,7 @@ macro_rules! construct_unsigned_bigint_methods {
 }
 
 macro_rules! impl_from {
-    ( $from: ident, $n_words_from: expr, $to: ident, $n_words_to: expr ) => {
+    ($from:ident, $n_words_from:expr, $to:ident, $n_words_to:expr) => {
         impl From<$from> for $to {
             fn from(init: $from) -> $to {
                 let mut ret = [0u64; $n_words_to];
@@ -1810,13 +1664,10 @@ mod tests {
 
     #[test]
     fn uint_to_be_bytes() {
-        assert_eq!(
-            Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef]).to_be_bytes(),
-            [
-                0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
-                0xfe, 0xed
-            ]
-        );
+        assert_eq!(Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef]).to_be_bytes(), [
+            0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
+            0xfe, 0xed
+        ]);
 
         assert_eq!(
             u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
@@ -1831,13 +1682,10 @@ mod tests {
 
     #[test]
     fn uint_to_le_bytes() {
-        assert_eq!(
-            Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef]).to_le_bytes(),
-            [
-                0xed, 0xfe, 0xed, 0x2b, 0xbe, 0xba, 0xaf, 0xde, 0xef, 0xbe, 0xad, 0xde, 0xfe, 0xca,
-                0xad, 0x1b
-            ]
-        );
+        assert_eq!(Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef]).to_le_bytes(), [
+            0xed, 0xfe, 0xed, 0x2b, 0xbe, 0xba, 0xaf, 0xde, 0xef, 0xbe, 0xad, 0xde, 0xfe, 0xca,
+            0xad, 0x1b
+        ]);
 
         assert_eq!(
             u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
@@ -2043,18 +1891,24 @@ mod tests {
             "deadbeeaa69b455cd41bb662a69b4550a69b455cd41bb662a69b4555deadbeef",
         );
 
-        assert!(::serde_json::from_str::<u256>(
-            "\"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffg\""
-        )
-        .is_err()); // invalid char
-        assert!(::serde_json::from_str::<u256>(
-            "\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\""
-        )
-        .is_err()); // invalid length
-        assert!(::serde_json::from_str::<u256>(
-            "\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\""
-        )
-        .is_err()); // invalid length
+        assert!(
+            ::serde_json::from_str::<u256>(
+                "\"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffg\""
+            )
+            .is_err()
+        ); // invalid char
+        assert!(
+            ::serde_json::from_str::<u256>(
+                "\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\""
+            )
+            .is_err()
+        ); // invalid length
+        assert!(
+            ::serde_json::from_str::<u256>(
+                "\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\""
+            )
+            .is_err()
+        ); // invalid length
     }
 
     #[test]

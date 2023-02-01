@@ -60,17 +60,20 @@ extern crate bitflags;
 /// This replaces `std` in builds with `core`.
 #[cfg(not(feature = "std"))]
 mod std {
+    pub use core::*;
+
     #[cfg(feature = "alloc")]
     pub use ::alloc::vec;
-    pub use core::*;
 }
 
-use amplify_num::{i256, u256};
 use core::cmp::Ordering;
 use core::fmt::{self, Display, Formatter};
-use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
-use core::ops::{AddAssign, DivAssign, MulAssign, RemAssign, SubAssign};
+use core::ops::{
+    Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign,
+};
 use core::str::FromStr;
+
+use amplify_num::{i256, u256};
 
 bitflags! {
     /// IEEE-754R 7: Default exception handling.
@@ -114,7 +117,7 @@ impl<T> StatusAnd<T> {
 
 #[macro_export]
 macro_rules! unpack {
-    ($status:ident|=, $e:expr) => {
+    ($status:ident |= , $e:expr) => {
         match $e {
             $crate::StatusAnd { status, value } => {
                 $status |= status;
@@ -122,7 +125,7 @@ macro_rules! unpack {
             }
         }
     };
-    ($status:ident=, $e:expr) => {
+    ($status:ident = , $e:expr) => {
         match $e {
             $crate::StatusAnd { status, value } => {
                 $status = status;
@@ -174,9 +177,7 @@ pub const IEK_ZERO: ExpInt = ExpInt::min_value() + 1;
 pub struct ParseError(pub &'static str);
 
 impl Display for ParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { f.write_str(self.0) }
 }
 
 /// A self-contained host- and target-independent arbitrary-precision
@@ -317,9 +318,7 @@ pub trait Float:
     // Arithmetic
 
     fn add_r(self, rhs: Self, round: Round) -> StatusAnd<Self>;
-    fn sub_r(self, rhs: Self, round: Round) -> StatusAnd<Self> {
-        self.add_r(-rhs, round)
-    }
+    fn sub_r(self, rhs: Self, round: Round) -> StatusAnd<Self> { self.add_r(-rhs, round) }
     fn mul_r(self, rhs: Self, round: Round) -> StatusAnd<Self>;
     fn mul_add_r(self, multiplicand: Self, addend: Self, round: Round) -> StatusAnd<Self>;
     fn mul_add(self, multiplicand: Self, addend: Self) -> StatusAnd<Self> {
@@ -374,17 +373,9 @@ pub trait Float:
     ///
     /// *NOTE* since nextDown(x) = -nextUp(-x), we only implement nextUp with
     /// appropriate sign switching before/after the computation.
-    fn next_down(self) -> StatusAnd<Self> {
-        (-self).next_up().map(|r| -r)
-    }
+    fn next_down(self) -> StatusAnd<Self> { (-self).next_up().map(|r| -r) }
 
-    fn abs(self) -> Self {
-        if self.is_negative() {
-            -self
-        } else {
-            self
-        }
-    }
+    fn abs(self) -> Self { if self.is_negative() { -self } else { self } }
     fn copy_sign(self, rhs: Self) -> Self {
         if self.is_negative() != rhs.is_negative() {
             -self
@@ -508,22 +499,16 @@ pub trait Float:
     ///
     /// This implies that the current value of the float is not zero, subnormal,
     /// infinite, or NaN following the definition of normality from IEEE-754R.
-    fn is_normal(self) -> bool {
-        !self.is_denormal() && self.is_finite_non_zero()
-    }
+    fn is_normal(self) -> bool { !self.is_denormal() && self.is_finite_non_zero() }
 
     /// Returns true if and only if the current value is zero, subnormal, or
     /// normal.
     ///
     /// This means that the value is not infinite or NaN.
-    fn is_finite(self) -> bool {
-        !self.is_nan() && !self.is_infinite()
-    }
+    fn is_finite(self) -> bool { !self.is_nan() && !self.is_infinite() }
 
     /// Returns true if and only if the float is plus or minus zero.
-    fn is_zero(self) -> bool {
-        self.category() == Category::Zero
-    }
+    fn is_zero(self) -> bool { self.category() == Category::Zero }
 
     /// IEEE-754R isSubnormal(): Returns true if and only if the float is a
     /// denormal.
@@ -531,14 +516,10 @@ pub trait Float:
 
     /// IEEE-754R isInfinite(): Returns true if and only if the float is
     /// infinity.
-    fn is_infinite(self) -> bool {
-        self.category() == Category::Infinity
-    }
+    fn is_infinite(self) -> bool { self.category() == Category::Infinity }
 
     /// Returns true if and only if the float is a quiet or signaling NaN.
-    fn is_nan(self) -> bool {
-        self.category() == Category::NaN
-    }
+    fn is_nan(self) -> bool { self.category() == Category::NaN }
 
     /// Returns true if and only if the float is a signaling NaN.
     fn is_signaling(self) -> bool;
@@ -546,30 +527,18 @@ pub trait Float:
     // Simple Queries
 
     fn category(self) -> Category;
-    fn is_non_zero(self) -> bool {
-        !self.is_zero()
-    }
-    fn is_finite_non_zero(self) -> bool {
-        self.is_finite() && !self.is_zero()
-    }
-    fn is_pos_zero(self) -> bool {
-        self.is_zero() && !self.is_negative()
-    }
-    fn is_neg_zero(self) -> bool {
-        self.is_zero() && self.is_negative()
-    }
+    fn is_non_zero(self) -> bool { !self.is_zero() }
+    fn is_finite_non_zero(self) -> bool { self.is_finite() && !self.is_zero() }
+    fn is_pos_zero(self) -> bool { self.is_zero() && !self.is_negative() }
+    fn is_neg_zero(self) -> bool { self.is_zero() && self.is_negative() }
 
     /// Returns true if and only if the number has the smallest possible
     /// non-zero magnitude in the current semantics.
-    fn is_smallest(self) -> bool {
-        Self::SMALLEST.copy_sign(self).bitwise_eq(self)
-    }
+    fn is_smallest(self) -> bool { Self::SMALLEST.copy_sign(self).bitwise_eq(self) }
 
     /// Returns true if and only if the number has the largest possible finite
     /// magnitude in the current semantics.
-    fn is_largest(self) -> bool {
-        Self::largest().copy_sign(self).bitwise_eq(self)
-    }
+    fn is_largest(self) -> bool { Self::largest().copy_sign(self).bitwise_eq(self) }
 
     /// Returns true if and only if the number is an exact integer.
     fn is_integer(self) -> bool {
@@ -597,9 +566,7 @@ pub trait Float:
 
     /// Returns: self * 2<sup>exp</sup> for integral exponents.
     fn scalbn_r(self, exp: ExpInt, round: Round) -> Self;
-    fn scalbn(self, exp: ExpInt) -> Self {
-        self.scalbn_r(exp, Round::NearestTiesToEven)
-    }
+    fn scalbn(self, exp: ExpInt) -> Self { self.scalbn_r(exp, Round::NearestTiesToEven) }
 
     /// Equivalent of C standard library function.
     ///
@@ -607,9 +574,7 @@ pub trait Float:
     /// nan, this returns INT_MAX for infinities, and INT_MIN for NaNs (see
     /// `ilogb`).
     fn frexp_r(self, exp: &mut ExpInt, round: Round) -> Self;
-    fn frexp(self, exp: &mut ExpInt) -> Self {
-        self.frexp_r(exp, Round::NearestTiesToEven)
-    }
+    fn frexp(self, exp: &mut ExpInt) -> Self { self.frexp_r(exp, Round::NearestTiesToEven) }
 }
 
 pub trait FloatConvert<T: Float>: Float {
@@ -626,19 +591,15 @@ pub trait FloatConvert<T: Float>: Float {
 }
 
 macro_rules! float_common_impls {
-    ($ty:ident<$t:tt>) => {
+    ($ty:ident < $t:tt >) => {
         impl<$t> Default for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
-            fn default() -> Self {
-                Self::ZERO
-            }
+            fn default() -> Self { Self::ZERO }
         }
 
         impl<$t> ::core::str::FromStr for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
             type Err = ParseError;
             fn from_str(s: &str) -> Result<Self, ParseError> {
@@ -649,98 +610,68 @@ macro_rules! float_common_impls {
         // Rounding ties to the nearest even, by default.
 
         impl<$t> ::core::ops::Add for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
             type Output = StatusAnd<Self>;
-            fn add(self, rhs: Self) -> StatusAnd<Self> {
-                self.add_r(rhs, Round::NearestTiesToEven)
-            }
+            fn add(self, rhs: Self) -> StatusAnd<Self> { self.add_r(rhs, Round::NearestTiesToEven) }
         }
 
         impl<$t> ::core::ops::Sub for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
             type Output = StatusAnd<Self>;
-            fn sub(self, rhs: Self) -> StatusAnd<Self> {
-                self.sub_r(rhs, Round::NearestTiesToEven)
-            }
+            fn sub(self, rhs: Self) -> StatusAnd<Self> { self.sub_r(rhs, Round::NearestTiesToEven) }
         }
 
         impl<$t> ::core::ops::Mul for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
             type Output = StatusAnd<Self>;
-            fn mul(self, rhs: Self) -> StatusAnd<Self> {
-                self.mul_r(rhs, Round::NearestTiesToEven)
-            }
+            fn mul(self, rhs: Self) -> StatusAnd<Self> { self.mul_r(rhs, Round::NearestTiesToEven) }
         }
 
         impl<$t> ::core::ops::Div for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
             type Output = StatusAnd<Self>;
-            fn div(self, rhs: Self) -> StatusAnd<Self> {
-                self.div_r(rhs, Round::NearestTiesToEven)
-            }
+            fn div(self, rhs: Self) -> StatusAnd<Self> { self.div_r(rhs, Round::NearestTiesToEven) }
         }
 
         impl<$t> ::core::ops::Rem for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
             type Output = StatusAnd<Self>;
-            fn rem(self, rhs: Self) -> StatusAnd<Self> {
-                self.c_fmod(rhs)
-            }
+            fn rem(self, rhs: Self) -> StatusAnd<Self> { self.c_fmod(rhs) }
         }
 
         impl<$t> ::core::ops::AddAssign for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
-            fn add_assign(&mut self, rhs: Self) {
-                *self = (*self + rhs).value;
-            }
+            fn add_assign(&mut self, rhs: Self) { *self = (*self + rhs).value; }
         }
 
         impl<$t> ::core::ops::SubAssign for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
-            fn sub_assign(&mut self, rhs: Self) {
-                *self = (*self - rhs).value;
-            }
+            fn sub_assign(&mut self, rhs: Self) { *self = (*self - rhs).value; }
         }
 
         impl<$t> ::core::ops::MulAssign for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
-            fn mul_assign(&mut self, rhs: Self) {
-                *self = (*self * rhs).value;
-            }
+            fn mul_assign(&mut self, rhs: Self) { *self = (*self * rhs).value; }
         }
 
         impl<$t> ::core::ops::DivAssign for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
-            fn div_assign(&mut self, rhs: Self) {
-                *self = (*self / rhs).value;
-            }
+            fn div_assign(&mut self, rhs: Self) { *self = (*self / rhs).value; }
         }
 
         impl<$t> ::core::ops::RemAssign for $ty<$t>
-        where
-            Self: Float,
+        where Self: Float
         {
-            fn rem_assign(&mut self, rhs: Self) {
-                *self = (*self % rhs).value;
-            }
+            fn rem_assign(&mut self, rhs: Self) { *self = (*self % rhs).value; }
         }
     };
 }

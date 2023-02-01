@@ -17,7 +17,18 @@ use crate::error::PositDecodeError;
 use crate::{u1024, u256, u512};
 
 macro_rules! construct_posit {
-    ($name:ident, $bits:expr, $es:expr, $internal:ident, $zeros: expr, $ones: expr, $nar: expr, $guard:ident, $guard_zero:expr, $guard_max: expr) => {
+    (
+        $name:ident,
+        $bits:expr,
+        $es:expr,
+        $internal:ident,
+        $zeros:expr,
+        $ones:expr,
+        $nar:expr,
+        $guard:ident,
+        $guard_zero:expr,
+        $guard_max:expr
+    ) => {
         #[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
         pub struct $name($internal);
 
@@ -26,24 +37,16 @@ macro_rules! construct_posit {
             pub const NAR: $name = $name($nar);
 
             #[inline]
-            pub fn as_inner(&self) -> &$internal {
-                &self.0
-            }
+            pub fn as_inner(&self) -> &$internal { &self.0 }
 
             #[inline]
-            pub fn into_inner(self) -> $internal {
-                self.0
-            }
+            pub fn into_inner(self) -> $internal { self.0 }
 
             #[inline]
-            pub fn is_nar(&self) -> bool {
-                self == &Self::NAR
-            }
+            pub fn is_nar(&self) -> bool { self == &Self::NAR }
 
             #[inline]
-            pub fn is_zero(&self) -> bool {
-                self.0 == $zeros
-            }
+            pub fn is_zero(&self) -> bool { self.0 == $zeros }
 
             #[inline]
             pub fn is_negative(&self) -> bool {
@@ -73,9 +76,7 @@ macro_rules! construct_posit {
                 ((regime as i32) << $es) + exp.to_le_bytes()[0] as i32
             }
 
-            pub fn from_bits(bits: $internal) -> Self {
-                Self(bits)
-            }
+            pub fn from_bits(bits: $internal) -> Self { Self(bits) }
 
             pub fn decode(&self) -> Result<(bool, i16, $internal, $internal), PositDecodeError> {
                 if self.is_zero() {
@@ -162,14 +163,11 @@ macro_rules! construct_posit {
 
         impl ::core::ops::Neg for $name {
             type Output = Self;
-            fn neg(self) -> Self::Output {
-                Self(self.0.wrapping_neg())
-            }
+            fn neg(self) -> Self::Output { Self(self.0.wrapping_neg()) }
         }
 
         impl<T> ::core::ops::Add<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
             fn add(self, other: T) -> $name {
@@ -189,7 +187,7 @@ macro_rules! construct_posit {
                 };
                 let (lhs, rhs) = match (lhs.decode(), rhs.decode()) {
                     (Err(PositDecodeError::NaR), _) | (_, Err(PositDecodeError::NaR)) => {
-                        return Self::NAR
+                        return Self::NAR;
                     }
                     (Err(PositDecodeError::Zero), _) => return (if sign { -rhs } else { rhs }),
                     (_, Err(PositDecodeError::Zero)) => return (if sign { -lhs } else { lhs }),
@@ -203,8 +201,8 @@ macro_rules! construct_posit {
                 let exp_rhs = Self::exp(rhs.1, rhs.2);
                 let shift = (exp_lhs - exp_rhs) as u32;
                 let mantissa_lhs = ($guard::from(lhs.3) << ($bits - 2)) | (!($guard_max >> 1) >> 1);
-                let mantissa_rhs = (($guard::from(rhs.3) << ($bits - 2))
-                    | (!($guard_max >> 1) >> 1))
+                let mantissa_rhs = (($guard::from(rhs.3) << ($bits - 2)) |
+                    (!($guard_max >> 1) >> 1))
                     .checked_shr(shift)
                     .unwrap_or($guard_zero);
                 let mantissa = match self.is_negative() == other.is_negative() {
@@ -222,18 +220,14 @@ macro_rules! construct_posit {
         }
 
         impl<T> ::core::ops::Sub<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
-            fn sub(self, other: T) -> $name {
-                self + (-(other.into()))
-            }
+            fn sub(self, other: T) -> $name { self + (-(other.into())) }
         }
 
         impl<T> ::core::ops::Mul<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
             fn mul(self, other: T) -> $name {
@@ -241,10 +235,10 @@ macro_rules! construct_posit {
                 let sign = self.is_negative() != other.is_negative();
                 let (lhs, rhs) = match (self.decode(), other.decode()) {
                     (Err(PositDecodeError::NaR), _) | (_, Err(PositDecodeError::NaR)) => {
-                        return Self::NAR
+                        return Self::NAR;
                     }
                     (Err(PositDecodeError::Zero), _) | (_, Err(PositDecodeError::Zero)) => {
-                        return Self::ZERO
+                        return Self::ZERO;
                     }
                     (Ok(l), Ok(r)) => (l, r),
                 };
@@ -263,8 +257,7 @@ macro_rules! construct_posit {
         }
 
         impl<T> ::core::ops::Div<T> for $name
-        where
-            T: Into<$name>,
+        where T: Into<$name>
         {
             type Output = $name;
             fn div(self, other: T) -> $name {
@@ -272,7 +265,7 @@ macro_rules! construct_posit {
                 let sign = self.is_negative() != other.is_negative();
                 let (lhs, rhs) = match (self.decode(), other.decode()) {
                     (Err(PositDecodeError::NaR), _) | (_, Err(PositDecodeError::NaR)) => {
-                        return Self::NAR
+                        return Self::NAR;
                     }
                     (_, Err(PositDecodeError::Zero)) => return Self::NAR,
                     (Err(PositDecodeError::Zero), _) => return Self::ZERO,
@@ -309,30 +302,22 @@ macro_rules! construct_posit {
 
         impl ::core::ops::AddAssign for $name {
             #[inline]
-            fn add_assign(&mut self, other: Self) {
-                *self = *self + other
-            }
+            fn add_assign(&mut self, other: Self) { *self = *self + other }
         }
 
         impl ::core::ops::SubAssign for $name {
             #[inline]
-            fn sub_assign(&mut self, other: Self) {
-                *self = *self - other
-            }
+            fn sub_assign(&mut self, other: Self) { *self = *self - other }
         }
 
         impl ::core::ops::MulAssign for $name {
             #[inline]
-            fn mul_assign(&mut self, other: Self) {
-                *self = *self * other
-            }
+            fn mul_assign(&mut self, other: Self) { *self = *self * other }
         }
 
         impl ::core::ops::DivAssign for $name {
             #[inline]
-            fn div_assign(&mut self, other: Self) {
-                *self = *self / other
-            }
+            fn div_assign(&mut self, other: Self) { *self = *self / other }
         }
 
         impl ::core::fmt::Debug for $name {
@@ -779,42 +764,26 @@ mod tests {
     }
 
     #[test]
-    fn posit8_add() {
-        rand_posit8(|p_a, p_b, f_a, f_b| (p_a + p_b, f_a + f_b));
-    }
+    fn posit8_add() { rand_posit8(|p_a, p_b, f_a, f_b| (p_a + p_b, f_a + f_b)); }
 
     #[test]
-    fn posit8_sub() {
-        rand_posit8(|p_a, p_b, f_a, f_b| (p_a - p_b, f_a - f_b));
-    }
+    fn posit8_sub() { rand_posit8(|p_a, p_b, f_a, f_b| (p_a - p_b, f_a - f_b)); }
 
     #[test]
-    fn posit8_mul() {
-        rand_posit8(|p_a, p_b, f_a, f_b| (p_a * p_b, f_a * f_b));
-    }
+    fn posit8_mul() { rand_posit8(|p_a, p_b, f_a, f_b| (p_a * p_b, f_a * f_b)); }
 
     #[test]
-    fn posit8_div() {
-        rand_posit8(|p_a, p_b, f_a, f_b| (p_a / p_b, f_a / f_b));
-    }
+    fn posit8_div() { rand_posit8(|p_a, p_b, f_a, f_b| (p_a / p_b, f_a / f_b)); }
 
     #[test]
-    fn posit16_add() {
-        rand_posit16(|p_a, p_b, f_a, f_b| (p_a + p_b, f_a + f_b));
-    }
+    fn posit16_add() { rand_posit16(|p_a, p_b, f_a, f_b| (p_a + p_b, f_a + f_b)); }
 
     #[test]
-    fn posit16_sub() {
-        rand_posit16(|p_a, p_b, f_a, f_b| (p_a - p_b, f_a - f_b));
-    }
+    fn posit16_sub() { rand_posit16(|p_a, p_b, f_a, f_b| (p_a - p_b, f_a - f_b)); }
 
     #[test]
-    fn posit16_mul() {
-        rand_posit16(|p_a, p_b, f_a, f_b| (p_a * p_b, f_a * f_b));
-    }
+    fn posit16_mul() { rand_posit16(|p_a, p_b, f_a, f_b| (p_a * p_b, f_a * f_b)); }
 
     #[test]
-    fn posit16_div() {
-        rand_posit16(|p_a, p_b, f_a, f_b| (p_a / p_b, f_a / f_b));
-    }
+    fn posit16_div() { rand_posit16(|p_a, p_b, f_a, f_b| (p_a / p_b, f_a / f_b)); }
 }

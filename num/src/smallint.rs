@@ -289,9 +289,8 @@ construct_smallint!(
     into_u8,
     1,
     2,
-    doc =
-        "1-bit unsigned integer in the range `0..1`. It can be used instead of `bool` when 1-bit \
-    numeric (and not boolean) arithmetic is required"
+    doc = "1-bit unsigned integer in the range `0..1`. It can be used instead of `bool` when \
+           1-bit numeric (and not boolean) arithmetic is required"
 );
 construct_smallint!(u2, u8, to_u8, 2, 4, doc = "2-bit unsigned integer in the range `0..4`");
 construct_smallint!(u3, u8, to_u8, 3, 8, doc = "3-bit unsigned integer in the range `0..8`");
@@ -309,33 +308,23 @@ construct_smallint!(
 );
 
 impl From<u24> for i32 {
-    fn from(val: u24) -> Self {
-        val.0 as i32
-    }
+    fn from(val: u24) -> Self { val.0 as i32 }
 }
 
 impl From<u24> for i64 {
-    fn from(val: u24) -> Self {
-        val.0 as i64
-    }
+    fn from(val: u24) -> Self { val.0 as i64 }
 }
 
 impl From<u24> for isize {
-    fn from(val: u24) -> Self {
-        val.0 as isize
-    }
+    fn from(val: u24) -> Self { val.0 as isize }
 }
 
 impl From<u24> for u64 {
-    fn from(val: u24) -> Self {
-        val.0 as u64
-    }
+    fn from(val: u24) -> Self { val.0 as u64 }
 }
 
 impl From<u24> for usize {
-    fn from(val: u24) -> Self {
-        val.0 as usize
-    }
+    fn from(val: u24) -> Self { val.0 as usize }
 }
 
 impl u24 {
@@ -372,34 +361,22 @@ impl u24 {
     }
 
     /// Converts into `i32` type.
-    pub const fn into_i32(self) -> i32 {
-        self.0 as i32
-    }
+    pub const fn into_i32(self) -> i32 { self.0 as i32 }
 
     /// Converts into `i64` type.
-    pub const fn into_i64(self) -> i64 {
-        self.0 as i64
-    }
+    pub const fn into_i64(self) -> i64 { self.0 as i64 }
 
     /// Converts into `isize` type.
-    pub const fn into_isize(self) -> isize {
-        self.0 as isize
-    }
+    pub const fn into_isize(self) -> isize { self.0 as isize }
 
     /// Converts into `u32` type.
-    pub const fn into_u32(self) -> u32 {
-        self.0
-    }
+    pub const fn into_u32(self) -> u32 { self.0 }
 
     /// Converts into `u64` type.
-    pub const fn into_u64(self) -> u64 {
-        self.0 as u64
-    }
+    pub const fn into_u64(self) -> u64 { self.0 as u64 }
 
     /// Converts into `usize` type.
-    pub const fn into_usize(self) -> usize {
-        self.0 as usize
-    }
+    pub const fn into_usize(self) -> usize { self.0 as usize }
 }
 
 #[cfg(test)]
@@ -494,45 +471,31 @@ mod test {
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 3, value: 4 }")]
-    fn u2_overflow_test() {
-        u2::try_from(4).unwrap();
-    }
+    fn u2_overflow_test() { u2::try_from(4).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 7, value: 8 }")]
-    fn u3_overflow_test() {
-        u3::try_from(8).unwrap();
-    }
+    fn u3_overflow_test() { u3::try_from(8).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 15, value: 16 }")]
-    fn u4_overflow_test() {
-        u4::try_from(16).unwrap();
-    }
+    fn u4_overflow_test() { u4::try_from(16).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 31, value: 32 }")]
-    fn u5_overflow_test() {
-        u5::try_from(32).unwrap();
-    }
+    fn u5_overflow_test() { u5::try_from(32).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 63, value: 64 }")]
-    fn u6_overflow_test() {
-        u6::try_from(64).unwrap();
-    }
+    fn u6_overflow_test() { u6::try_from(64).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 127, value: 128 }")]
-    fn u7_overflow_test() {
-        u7::try_from(128).unwrap();
-    }
+    fn u7_overflow_test() { u7::try_from(128).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 16777215, value: 16777216 }")]
-    fn u24_overflow_test() {
-        u24::try_from(1 << 24).unwrap();
-    }
+    fn u24_overflow_test() { u24::try_from(1 << 24).unwrap(); }
 
     #[test]
     fn u24_endianess() {

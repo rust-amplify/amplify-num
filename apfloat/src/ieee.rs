@@ -20,8 +20,10 @@ use std::vec::Vec;
 
 use amplify_num::u256;
 
-use crate::{Category, ExpInt, IEK_INF, IEK_NAN, IEK_ZERO};
-use crate::{Float, FloatConvert, ParseError, Round, Status, StatusAnd};
+use crate::{
+    Category, ExpInt, Float, FloatConvert, ParseError, Round, Status, StatusAnd, IEK_INF, IEK_NAN,
+    IEK_ZERO,
+};
 
 #[must_use]
 pub struct IeeeFloat<S> {
@@ -44,9 +46,7 @@ pub struct IeeeFloat<S> {
 /// large to store the largest significands by itself.
 type Limb = u256;
 const LIMB_BITS: usize = 256;
-fn limbs_for_bits(bits: usize) -> usize {
-    (bits + LIMB_BITS - 1) / LIMB_BITS
-}
+fn limbs_for_bits(bits: usize) -> usize { (bits + LIMB_BITS - 1) / LIMB_BITS }
 
 /// Enum that represents what fraction of the LSB truncated bits of an fp number
 /// represent.
@@ -163,9 +163,7 @@ pub trait Semantics: Sized {
 
 impl<S> Copy for IeeeFloat<S> {}
 impl<S> Clone for IeeeFloat<S> {
-    fn clone(&self) -> Self {
-        *self
-    }
+    fn clone(&self) -> Self { *self }
 }
 
 macro_rules! ieee_semantics {
@@ -281,9 +279,7 @@ impl Semantics for X87DoubleExtendedS {
 float_common_impls!(IeeeFloat<S>);
 
 impl<S: Semantics> PartialEq for IeeeFloat<S> {
-    fn eq(&self, rhs: &Self) -> bool {
-        self.partial_cmp(rhs) == Some(Ordering::Equal)
-    }
+    fn eq(&self, rhs: &Self) -> bool { self.partial_cmp(rhs) == Some(Ordering::Equal) }
 }
 
 impl<S: Semantics> PartialOrd for IeeeFloat<S> {
@@ -309,11 +305,7 @@ impl<S: Semantics> PartialOrd for IeeeFloat<S> {
                     // Compare absolute values; invert result if negative.
                     let result = self.cmp_abs_normal(*rhs);
 
-                    if self.sign {
-                        result.reverse()
-                    } else {
-                        result
-                    }
+                    if self.sign { result.reverse() } else { result }
                 }))
             }
         }
@@ -695,8 +687,8 @@ impl<S: Semantics> Float for IeeeFloat<S> {
 
     fn qnan(payload: Option<u256>) -> Self {
         IeeeFloat {
-            sig: [S::QNAN_SIGNIFICAND
-                | payload.map_or(u256::ZERO, |payload| {
+            sig: [S::QNAN_SIGNIFICAND |
+                payload.map_or(u256::ZERO, |payload| {
                     // Zero out the excess bits of the significand.
                     payload & ((u256::ONE << S::QNAN_BIT) - u256::ONE)
                 })],
@@ -806,8 +798,8 @@ impl<S: Semantics> Float for IeeeFloat<S> {
         // If two numbers add (exactly) to zero, IEEE 754 decrees it is a
         // positive zero unless rounding to minus infinity, except that
         // adding two like-signed zeroes gives that zero.
-        if self.category == Category::Zero
-            && (rhs.category != Category::Zero || self.sign != rhs.sign)
+        if self.category == Category::Zero &&
+            (rhs.category != Category::Zero || self.sign != rhs.sign)
         {
             self.sign = round == Round::TowardNegative;
         }
@@ -958,9 +950,9 @@ impl<S: Semantics> Float for IeeeFloat<S> {
         // If two numbers add (exactly) to zero, IEEE 754 decrees it is a
         // positive zero unless rounding to minus infinity, except that
         // adding two like-signed zeroes gives that zero.
-        if self.category == Category::Zero
-            && !status.intersects(Status::UNDERFLOW)
-            && self.sign != addend.sign
+        if self.category == Category::Zero &&
+            !status.intersects(Status::UNDERFLOW) &&
+            self.sign != addend.sign
         {
             self.sign = round == Round::TowardNegative;
         }
@@ -1022,10 +1014,10 @@ impl<S: Semantics> Float for IeeeFloat<S> {
 
     fn c_fmod(mut self, rhs: Self) -> StatusAnd<Self> {
         match (self.category, rhs.category) {
-            (Category::NaN, _)
-            | (Category::Zero, Category::Infinity)
-            | (Category::Zero, Category::Normal)
-            | (Category::Normal, Category::Infinity) => Status::OK.and(self),
+            (Category::NaN, _) |
+            (Category::Zero, Category::Infinity) |
+            (Category::Zero, Category::Normal) |
+            (Category::Normal, Category::Infinity) => Status::OK.and(self),
 
             (_, Category::NaN) => {
                 self.sign = false;
@@ -1037,9 +1029,9 @@ impl<S: Semantics> Float for IeeeFloat<S> {
             (Category::Infinity, _) | (_, Category::Zero) => Status::INVALID_OP.and(Self::NAN),
 
             (Category::Normal, Category::Normal) => {
-                while self.is_finite_non_zero()
-                    && rhs.is_finite_non_zero()
-                    && self.cmp_abs_normal(rhs) != Ordering::Less
+                while self.is_finite_non_zero() &&
+                    rhs.is_finite_non_zero() &&
+                    self.cmp_abs_normal(rhs) != Ordering::Less
                 {
                     let mut v = rhs.scalbn(self.ilogb() - rhs.ilogb());
                     if self.cmp_abs_normal(v) == Ordering::Less {
@@ -1182,8 +1174,8 @@ impl<S: Semantics> Float for IeeeFloat<S> {
                         assert_ne!(
                             self.exp,
                             S::MAX_EXP,
-                            "We can not increment an exponent beyond the MAX_EXP \
-                             allowed by the given floating point semantics."
+                            "We can not increment an exponent beyond the MAX_EXP allowed by the \
+                             given floating point semantics."
                         );
                         self.exp += 1;
                     } else {
@@ -1317,8 +1309,8 @@ impl<S: Semantics> Float for IeeeFloat<S> {
                 let mut loss = Loss::ExactlyZero;
                 if truncated_bits > 0 {
                     loss = Loss::through_truncation(&self.sig, truncated_bits);
-                    if loss != Loss::ExactlyZero
-                        && self.round_away_from_zero(round, loss, truncated_bits)
+                    if loss != Loss::ExactlyZero &&
+                        self.round_away_from_zero(round, loss, truncated_bits)
                     {
                         r = r.wrapping_add(Limb::ONE);
                         if r.is_zero() {
@@ -1368,14 +1360,12 @@ impl<S: Semantics> Float for IeeeFloat<S> {
         self.sig == rhs.sig
     }
 
-    fn is_negative(self) -> bool {
-        self.sign
-    }
+    fn is_negative(self) -> bool { self.sign }
 
     fn is_denormal(self) -> bool {
-        self.is_finite_non_zero()
-            && self.exp == S::MIN_EXP
-            && !sig::get_bit(&self.sig, S::PRECISION - 1)
+        self.is_finite_non_zero() &&
+            self.exp == S::MIN_EXP &&
+            !sig::get_bit(&self.sig, S::PRECISION - 1)
     }
 
     fn is_signaling(self) -> bool {
@@ -1384,9 +1374,7 @@ impl<S: Semantics> Float for IeeeFloat<S> {
         self.is_nan() && !sig::get_bit(&self.sig, S::QNAN_BIT)
     }
 
-    fn category(self) -> Category {
-        self.category
-    }
+    fn category(self) -> Category { self.category }
 
     fn get_exact_inverse(self) -> Option<Self> {
         // Special floats and denormals have no exact inverse.
@@ -1501,10 +1489,10 @@ impl<S: Semantics, T: Semantics> FloatConvert<IeeeFloat<T>> for IeeeFloat<S> {
         fn is_x87_double_extended<S: Semantics>() -> bool {
             S::QNAN_SIGNIFICAND == X87DoubleExtendedS::QNAN_SIGNIFICAND
         }
-        let x87_special_nan = is_x87_double_extended::<S>()
-            && !is_x87_double_extended::<T>()
-            && r.category == Category::NaN
-            && (r.sig[0] & S::QNAN_SIGNIFICAND) != S::QNAN_SIGNIFICAND;
+        let x87_special_nan = is_x87_double_extended::<S>() &&
+            !is_x87_double_extended::<T>() &&
+            r.category == Category::NaN &&
+            (r.sig[0] & S::QNAN_SIGNIFICAND) != S::QNAN_SIGNIFICAND;
 
         // If this is a truncation of a denormal number, and the target semantics
         // has larger exponent range than the source semantics (this can happen
@@ -1948,8 +1936,8 @@ impl<S: Semantics> IeeeFloat<S> {
         } else {
             dec_exp = dec_exp.saturating_sub((last_sig_digit - dot) as i32);
         }
-        let significand_digits = last_sig_digit - first_sig_digit + 1
-            - (dot > first_sig_digit && dot < last_sig_digit) as usize;
+        let significand_digits = last_sig_digit - first_sig_digit + 1 -
+            (dot > first_sig_digit && dot < last_sig_digit) as usize;
         let normalized_exp = dec_exp.saturating_add(significand_digits as i32 - 1);
 
         // Handle the cases where exponents are obviously too large or too
@@ -1968,16 +1956,16 @@ impl<S: Semantics> IeeeFloat<S> {
         //       42039/12655 < L < 28738/8651  [ numerator <= 65536 ]
 
         // Check for MAX_EXP.
-        if normalized_exp.saturating_sub(1).saturating_mul(42039) as i64
-            >= 12655 * S::MAX_EXP as i64
+        if normalized_exp.saturating_sub(1).saturating_mul(42039) as i64 >=
+            12655 * S::MAX_EXP as i64
         {
             // Overflow and round.
             return Ok(Self::overflow_result(round));
         }
 
         // Check for MIN_EXP.
-        if normalized_exp.saturating_add(1).saturating_mul(28738) as i64
-            <= 8651 * (S::MIN_EXP as i64 - S::PRECISION as i64)
+        if normalized_exp.saturating_add(1).saturating_mul(28738) as i64 <=
+            8651 * (S::MIN_EXP as i64 - S::PRECISION as i64)
         {
             // Underflow to zero and round.
             let r = if round == Round::TowardPositive {
@@ -2227,9 +2215,9 @@ impl<S: Semantics> IeeeFloat<S> {
             //
             // See "How to Read Floating Point Numbers Accurately" by William D Clinger.
             assert!(
-                half_ulp_err1 < 2u8.into()
-                    || half_ulp_err2 < 2u8.into()
-                    || (half_ulp_err1 + half_ulp_err2 < 8u8.into())
+                half_ulp_err1 < 2u8.into() ||
+                    half_ulp_err2 < 2u8.into() ||
+                    (half_ulp_err1 + half_ulp_err2 < 8u8.into())
             );
 
             let inexact = Limb::from(calc_loss != Loss::ExactlyZero);
@@ -2341,9 +2329,7 @@ mod sig {
 
     use super::{limbs_for_bits, ExpInt, Limb, Loss, LIMB_BITS};
 
-    pub(super) fn is_all_zeros(limbs: &[Limb]) -> bool {
-        limbs.iter().all(|&l| l.is_zero())
-    }
+    pub(super) fn is_all_zeros(limbs: &[Limb]) -> bool { limbs.iter().all(|&l| l.is_zero()) }
 
     /// One, not zero, based LSB. That is, returns 0 for a zeroed significand.
     pub(super) fn olsb(limbs: &[Limb]) -> usize {

@@ -11,11 +11,11 @@
 extern crate amplify_apfloat;
 extern crate amplify_num;
 
+use std::cmp::Ordering;
+
 use amplify_apfloat::ppc::DoubleDouble;
 use amplify_apfloat::{Category, Float, Round};
-
 use amplify_num::u256;
-use std::cmp::Ordering;
 
 #[test]
 fn ppc_double_double() {
@@ -590,12 +590,14 @@ fn ppc_double_double_is_denormal() {
 
 #[test]
 fn ppc_double_double_exact_inverse() {
-    assert!("2.0"
-        .parse::<DoubleDouble>()
-        .unwrap()
-        .get_exact_inverse()
-        .unwrap()
-        .bitwise_eq("0.5".parse::<DoubleDouble>().unwrap()));
+    assert!(
+        "2.0"
+            .parse::<DoubleDouble>()
+            .unwrap()
+            .get_exact_inverse()
+            .unwrap()
+            .bitwise_eq("0.5".parse::<DoubleDouble>().unwrap())
+    );
 }
 
 #[test]

@@ -58,21 +58,16 @@ pub trait ToHex {
 pub trait FromHex: Sized {
     /// Produce an object from a byte iterator
     fn from_byte_iter<I>(iter: I) -> Result<Self, Error>
-    where
-        I: Iterator<Item = Result<u8, Error>> + ExactSizeIterator + DoubleEndedIterator;
+    where I: Iterator<Item = Result<u8, Error>> + ExactSizeIterator + DoubleEndedIterator;
 
     /// Produce an object from a hex string
-    fn from_hex(s: &str) -> Result<Self, Error> {
-        Self::from_byte_iter(HexIterator::new(s)?)
-    }
+    fn from_hex(s: &str) -> Result<Self, Error> { Self::from_byte_iter(HexIterator::new(s)?) }
 }
 
 #[cfg(any(test, feature = "std", feature = "alloc"))]
 impl<T: fmt::LowerHex> ToHex for T {
     /// Outputs the hash in hexadecimal form
-    fn to_hex(&self) -> String {
-        format!("{self:x}")
-    }
+    fn to_hex(&self) -> String { format!("{self:x}") }
 }
 
 /// Iterator over a hex-encoded string slice which decodes hex and yields bytes.
@@ -176,9 +171,7 @@ impl ToHex for [u8] {
 #[cfg(any(test, feature = "std", feature = "alloc"))]
 impl FromHex for Vec<u8> {
     fn from_byte_iter<I>(iter: I) -> Result<Self, Error>
-    where
-        I: Iterator<Item = Result<u8, Error>> + ExactSizeIterator + DoubleEndedIterator,
-    {
+    where I: Iterator<Item = Result<u8, Error>> + ExactSizeIterator + DoubleEndedIterator {
         iter.collect()
     }
 }
@@ -187,8 +180,7 @@ macro_rules! impl_fromhex_array {
     ($len:expr) => {
         impl FromHex for [u8; $len] {
             fn from_byte_iter<I>(iter: I) -> Result<Self, Error>
-            where
-                I: Iterator<Item = Result<u8, Error>> + ExactSizeIterator + DoubleEndedIterator,
+            where I: Iterator<Item = Result<u8, Error>> + ExactSizeIterator + DoubleEndedIterator
             {
                 if iter.len() == $len {
                     let mut ret = [0; $len];
@@ -226,9 +218,9 @@ impl_fromhex_array!(512);
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use core::fmt;
+
+    use super::*;
 
     #[test]
     fn hex_roundtrip() {
@@ -255,9 +247,7 @@ mod tests {
     fn hex_truncate() {
         struct HexBytes(Vec<u8>);
         impl fmt::LowerHex for HexBytes {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                format_hex(&self.0, f)
-            }
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { format_hex(&self.0, f) }
         }
 
         let bytes = HexBytes(vec![1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -276,9 +266,7 @@ mod tests {
     fn hex_truncate_rev() {
         struct HexBytes(Vec<u8>);
         impl fmt::LowerHex for HexBytes {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                format_hex_reverse(&self.0, f)
-            }
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { format_hex_reverse(&self.0, f) }
         }
 
         let bytes = HexBytes(vec![1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
