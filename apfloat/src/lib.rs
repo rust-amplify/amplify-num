@@ -48,6 +48,9 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(not(any(feature = "std", feature = "alloc")))]
+compile_error!("either `std` or `alloc` feature is required");
+
 extern crate core;
 #[cfg(feature = "alloc")]
 #[macro_use]

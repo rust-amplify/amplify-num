@@ -32,8 +32,9 @@ jobs:
         feature:
           - std
           - alloc
-          - serde
-          - hex
+          - serde,alloc
+          - serde,std
+          - hex,alloc
           - hex,std
     steps:
       - uses: actions/checkout@v2
