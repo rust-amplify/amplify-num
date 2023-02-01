@@ -22,7 +22,7 @@ use core::convert::TryFrom;
 use crate::error::{DivError, OverflowError};
 
 macro_rules! construct_smallint {
-    ($ty:ident, $inner:ident, $as:ident, $bits:literal, $max:expr, $doc:meta) => {
+    ($ty:ident, $inner:ident, $to:ident, $bits:literal, $max:expr, $doc:meta) => {
         #[$doc]
         #[derive(PartialEq, Eq, Debug, Copy, Clone, Default, PartialOrd, Ord, Hash)]
         #[cfg_attr(
@@ -52,13 +52,13 @@ macro_rules! construct_smallint {
             /// Creates a new value from a provided `value.
             ///
             /// Panics if the value exceeds `Self::MAX`
-            pub fn with(value: $inner) -> Self {
+            pub const fn with(value: $inner) -> Self {
                 assert!(value < $max, "provided value exceeds Self::MAX");
                 Self(value)
             }
 
             /// Returns inner `u8` representation, which is always less or equal to `Self::MAX`
-            pub fn $as(self) -> $inner {
+            pub const fn $to(self) -> $inner {
                 self.0 as $inner
             }
         }
@@ -148,7 +148,7 @@ macro_rules! construct_smallint {
             /// numeric bounds instead of overflowing.
             pub fn saturating_add<T>(self, rhs: T) -> Self where T: Into<$inner> {
                 let res = self.0.saturating_add(rhs.into());
-                if res > Self::MAX.$as() {
+                if res > Self::MAX.$to() {
                     Self::MAX
                 } else {
                     Self(res)
@@ -182,7 +182,7 @@ macro_rules! construct_smallint {
             /// numeric bounds instead of overflowing.
             pub fn saturating_sub<T>(self, rhs: T) -> Self where T: Into<$inner> {
                 let res = self.0.saturating_sub(rhs.into());
-                if res > Self::MAX.$as() {
+                if res > Self::MAX.$to() {
                     Self::MAX
                 } else {
                     Self(res)
@@ -414,32 +414,32 @@ impl u24 {
     }
 
     /// Converts into `i32` type.
-    pub fn into_i32(self) -> i32 {
+    pub const fn into_i32(self) -> i32 {
         self.0 as i32
     }
 
     /// Converts into `i64` type.
-    pub fn into_i64(self) -> i64 {
+    pub const fn into_i64(self) -> i64 {
         self.0 as i64
     }
 
     /// Converts into `isize` type.
-    pub fn into_isize(self) -> isize {
+    pub const fn into_isize(self) -> isize {
         self.0 as isize
     }
 
     /// Converts into `u32` type.
-    pub fn into_u32(self) -> u32 {
+    pub const fn into_u32(self) -> u32 {
         self.0
     }
 
     /// Converts into `u64` type.
-    pub fn into_u64(self) -> u64 {
+    pub const fn into_u64(self) -> u64 {
         self.0 as u64
     }
 
     /// Converts into `usize` type.
-    pub fn into_usize(self) -> usize {
+    pub const fn into_usize(self) -> usize {
         self.0 as usize
     }
 }

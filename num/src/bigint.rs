@@ -44,13 +44,13 @@ macro_rules! construct_bigint {
 
             #[inline]
             /// Returns the underlying array of words constituting large integer
-            pub fn as_inner(&self) -> &[u64; $n_words] {
+            pub const fn as_inner(&self) -> &[u64; $n_words] {
                 &self.0
             }
 
             #[inline]
             /// Returns the underlying array of words constituting large integer
-            pub fn into_inner(self) -> [u64; $n_words] {
+            pub const fn into_inner(self) -> [u64; $n_words] {
                 self.0
             }
 
@@ -83,21 +83,21 @@ macro_rules! construct_bigint {
 
             /// Returns whether specific bit number is set to `1` or not
             #[inline]
-            pub fn bit(&self, index: usize) -> bool {
+            pub const fn bit(&self, index: usize) -> bool {
                 let &$name(ref arr) = self;
                 arr[index / 64] & (1 << (index % 64)) != 0
             }
 
             /// Returns lower 32 bits of the number as `u32`
             #[inline]
-            pub fn low_u32(&self) -> u32 {
+            pub const fn low_u32(&self) -> u32 {
                 let &$name(ref arr) = self;
                 (arr[0] & ::core::u32::MAX as u64) as u32
             }
 
             /// Returns lower 64 bits of the number as `u32`
             #[inline]
-            pub fn low_u64(&self) -> u64 {
+            pub const fn low_u64(&self) -> u64 {
                 let &$name(ref arr) = self;
                 arr[0] as u64
             }
@@ -1530,7 +1530,7 @@ macro_rules! construct_unsigned_bigint_methods {
             pub const MAX: $name = $name([::core::u64::MAX; $n_words]);
 
             #[inline]
-            pub fn is_negative(&self) -> bool {
+            pub const fn is_negative(&self) -> bool {
                 false
             }
 
