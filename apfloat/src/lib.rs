@@ -50,7 +50,7 @@
 #![cfg_attr(not(feature = "std"), feature(alloc))]
 
 extern crate core;
-#[cfg(not(feature = "std"))]
+#[cfg(feature = "alloc")]
 #[macro_use]
 extern crate alloc;
 
