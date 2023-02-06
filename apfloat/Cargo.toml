@@ -4,7 +4,7 @@ authors = [
     "Yudai Kiyofuji <own7000hr@gmail.com>"
 ]
 name = "amplify_apfloat"
-version = "0.1.4"
+version = "0.2.0"
 description = "rustc_apfloat with u256 backend to utilize Octuple precision floating-point format"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rust-amplify/rust-amplify"
