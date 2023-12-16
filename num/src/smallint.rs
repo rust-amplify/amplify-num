@@ -307,6 +307,90 @@ construct_smallint!(
     doc = "24-bit unsigned integer in the range `0..16_777_216`"
 );
 
+impl From<u1> for u2 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u3 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u3 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u4 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u4 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u3> for u4 {
+    fn from(value: u3) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u5 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u5 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u3> for u5 {
+    fn from(value: u3) -> Self { Self(value.0) }
+}
+
+impl From<u4> for u5 {
+    fn from(value: u4) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u6 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u6 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u3> for u6 {
+    fn from(value: u3) -> Self { Self(value.0) }
+}
+
+impl From<u4> for u6 {
+    fn from(value: u4) -> Self { Self(value.0) }
+}
+
+impl From<u5> for u6 {
+    fn from(value: u5) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u7 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u7 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u3> for u7 {
+    fn from(value: u3) -> Self { Self(value.0) }
+}
+
+impl From<u4> for u7 {
+    fn from(value: u4) -> Self { Self(value.0) }
+}
+
+impl From<u5> for u7 {
+    fn from(value: u5) -> Self { Self(value.0) }
+}
+
+impl From<u6> for u7 {
+    fn from(value: u6) -> Self { Self(value.0) }
+}
+
 impl From<u24> for i32 {
     fn from(val: u24) -> Self { val.0 as i32 }
 }
