@@ -38,5 +38,7 @@ jobs:
       - uses: jetli/wasm-pack-action@v0.3.0
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
-      - name: Test in headless Chrome
-        run: wasm-pack test --headless --chrome
+      - name: Test apfloat
+        run: cd apfloat && wasm-pack test --headless --chrome --all-features
+      - name: Test num
+        run: cd num && wasm-pack test --headless --chrome --all-features
