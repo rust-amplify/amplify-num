@@ -1,3 +1,4 @@
 [workspace]
 members = ["num", "apfloat"]
 default-members = ["num", "apfloat"]
+resolver = "2"

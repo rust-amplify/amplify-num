@@ -170,6 +170,7 @@ macro_rules! construct_smallint {
             /// Wrapping (modular) addition. Computes `self + rhs`, wrapping around at
             /// the boundary of the type.
             pub fn wrapping_add<T>(self, rhs: T) -> Self where T: Into<$inner> {
+                #[allow(clippy::modulo_one)]
                 Self(self.0.wrapping_add(rhs.into()) % Self::MAX.0)
             }
 
@@ -204,6 +205,7 @@ macro_rules! construct_smallint {
             /// Wrapping (modular) subtraction. Computes `self - rhs`, wrapping around at
             /// the boundary of the type.
             pub fn wrapping_sub<T>(self, rhs: T) -> Self where T: Into<$inner> {
+                #[allow(clippy::modulo_one)]
                 Self(self.0.wrapping_sub(rhs.into()) % Self::MAX.0)
             }
 
@@ -238,6 +240,7 @@ macro_rules! construct_smallint {
             /// Wrapping (modular) multiplication. Computes `self * rhs`, wrapping around at
             /// the boundary of the type.
             pub fn wrapping_mul<T>(self, rhs: T) -> Self where T: Into<$inner> {
+                #[allow(clippy::modulo_one)]
                 Self(self.0.wrapping_mul(rhs.into()) % Self::MAX.0)
             }
 
@@ -306,6 +309,90 @@ construct_smallint!(
     1u32 << 24,
     doc = "24-bit unsigned integer in the range `0..16_777_216`"
 );
+
+impl From<u1> for u2 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u3 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u3 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u4 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u4 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u3> for u4 {
+    fn from(value: u3) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u5 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u5 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u3> for u5 {
+    fn from(value: u3) -> Self { Self(value.0) }
+}
+
+impl From<u4> for u5 {
+    fn from(value: u4) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u6 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u6 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u3> for u6 {
+    fn from(value: u3) -> Self { Self(value.0) }
+}
+
+impl From<u4> for u6 {
+    fn from(value: u4) -> Self { Self(value.0) }
+}
+
+impl From<u5> for u6 {
+    fn from(value: u5) -> Self { Self(value.0) }
+}
+
+impl From<u1> for u7 {
+    fn from(value: u1) -> Self { Self(value.0) }
+}
+
+impl From<u2> for u7 {
+    fn from(value: u2) -> Self { Self(value.0) }
+}
+
+impl From<u3> for u7 {
+    fn from(value: u3) -> Self { Self(value.0) }
+}
+
+impl From<u4> for u7 {
+    fn from(value: u4) -> Self { Self(value.0) }
+}
+
+impl From<u5> for u7 {
+    fn from(value: u5) -> Self { Self(value.0) }
+}
+
+impl From<u6> for u7 {
+    fn from(value: u6) -> Self { Self(value.0) }
+}
 
 impl From<u24> for i32 {
     fn from(val: u24) -> Self { val.0 as i32 }
@@ -514,7 +601,7 @@ mod test {
     fn smallint_div_rem_0() {
         let u_2 = u2::MAX;
         let u_2_2 = u2::try_from(2).unwrap();
-        let u_2_half = (u2::try_from(u2::MAX / 2).unwrap(), u2::try_from(u2::MAX % 2).unwrap());
+        let u_2_half = (u2::MAX / 2, u2::MAX % 2);
         let u_2_zero = u2::ZERO;
 
         assert_eq!(u2::div_rem(u_2, u_2_2), Ok(u_2_half));

@@ -536,6 +536,7 @@ fn next() {
 }
 
 #[test]
+#[allow(clippy::excessive_precision)]
 fn fma() {
     {
         let mut f1 = Single::from_f32(14.5);
@@ -707,7 +708,7 @@ fn decimal_strings_without_null_terminators() {
 
 #[test]
 fn oct_decimal_string() {
-    assert_eq!(true, "0".parse::<Oct>().unwrap().is_zero());
+    assert!("0".parse::<Oct>().unwrap().is_zero());
     assert_eq!("0.5", "0.5".parse::<Oct>().unwrap().to_string());
 }
 
@@ -878,6 +879,7 @@ fn from_zero_hexadecimal_string() {
 }
 
 #[test]
+#[allow(clippy::approx_constant)]
 fn from_decimal_string() {
     assert_eq!(1.0, "1".parse::<Double>().unwrap().to_f64());
     assert_eq!(2.0, "2.".parse::<Double>().unwrap().to_f64());
@@ -1008,6 +1010,7 @@ fn from_hexadecimal_string() {
 }
 
 #[test]
+#[allow(clippy::excessive_precision)]
 fn to_string() {
     let to_string = |d: f64, precision: usize, width: usize| {
         let x = Double::from_f64(d);
@@ -1173,11 +1176,11 @@ fn string_decimal_death() {
 
     assert_eq!("\0".parse::<Double>(), Err(ParseError("Invalid character in significand")));
     assert_eq!("1\0".parse::<Double>(), Err(ParseError("Invalid character in significand")));
-    assert_eq!("1\02".parse::<Double>(), Err(ParseError("Invalid character in significand")));
-    assert_eq!("1\02e1".parse::<Double>(), Err(ParseError("Invalid character in significand")));
+    assert_eq!("1\x002".parse::<Double>(), Err(ParseError("Invalid character in significand")));
+    assert_eq!("1\x002e1".parse::<Double>(), Err(ParseError("Invalid character in significand")));
     assert_eq!("1e\0".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
     assert_eq!("1e1\0".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
-    assert_eq!("1e1\02".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
+    assert_eq!("1e1\x002".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
 
     assert_eq!("1.0f".parse::<Double>(), Err(ParseError("Invalid character in significand")));
 
@@ -1263,11 +1266,11 @@ fn string_hexadecimal_death() {
 
     assert_eq!("0x\0".parse::<Double>(), Err(ParseError("Invalid character in significand")));
     assert_eq!("0x1\0".parse::<Double>(), Err(ParseError("Invalid character in significand")));
-    assert_eq!("0x1\02".parse::<Double>(), Err(ParseError("Invalid character in significand")));
-    assert_eq!("0x1\02p1".parse::<Double>(), Err(ParseError("Invalid character in significand")));
+    assert_eq!("0x1\x002".parse::<Double>(), Err(ParseError("Invalid character in significand")));
+    assert_eq!("0x1\x002p1".parse::<Double>(), Err(ParseError("Invalid character in significand")));
     assert_eq!("0x1p\0".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
     assert_eq!("0x1p1\0".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
-    assert_eq!("0x1p1\02".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
+    assert_eq!("0x1p1\x002".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
 
     assert_eq!("0x1p0f".parse::<Double>(), Err(ParseError("Invalid character in exponent")));
 
@@ -1359,6 +1362,7 @@ fn string_hexadecimal_exponent_death() {
 }
 
 #[test]
+#[allow(clippy::excessive_precision)]
 fn exact_inverse() {
     // Trivial operation.
     assert!(
@@ -1411,6 +1415,7 @@ fn exact_inverse() {
 }
 
 #[test]
+#[allow(clippy::approx_constant)]
 fn round_to_integral() {
     let t = Double::from_f64(-0.5);
     assert_eq!(-0.0, t.round_to_integral(Round::TowardZero).value.to_f64());
@@ -1445,6 +1450,7 @@ fn round_to_integral() {
 }
 
 #[test]
+#[allow(clippy::approx_constant)]
 fn is_integer() {
     let t = Double::from_f64(-0.0);
     assert!(t.is_integer());
@@ -1461,6 +1467,7 @@ fn is_integer() {
 }
 
 #[test]
+#[allow(clippy::excessive_precision)]
 fn largest() {
     assert_eq!(3.402823466e+38, Single::largest().to_f32());
     assert_eq!(1.7976931348623158e+308, Double::largest().to_f64());

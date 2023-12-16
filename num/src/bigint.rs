@@ -1488,11 +1488,11 @@ mod tests {
 
         // Try to read the following lines out loud quickly
         let mut shl = u256::from(70000u64);
-        shl = shl << 100;
+        shl <<= 100;
         assert_eq!(shl.bits_required(), 117);
-        shl = shl << 100;
+        shl <<= 100;
         assert_eq!(shl.bits_required(), 217);
-        shl = shl << 100;
+        shl <<= 100;
         assert_eq!(shl.bits_required(), 0);
 
         // Bit set check
@@ -1920,12 +1920,12 @@ mod tests {
 
     #[test]
     fn i256_is_positive_test() {
-        assert_eq!(true, i256::from(1).is_positive());
-        assert_eq!(false, i256::from(-1).is_positive());
-        assert_eq!(false, i256::from(0).is_positive());
-        assert_eq!(true, i256::MAX.is_positive());
-        assert_eq!(false, i256::MIN.is_positive());
-        assert_eq!(true, i256::MIN.is_negative());
+        assert!(i256::from(1).is_positive());
+        assert!(!i256::from(-1).is_positive());
+        assert!(!i256::from(0).is_positive());
+        assert!(i256::MAX.is_positive());
+        assert!(!i256::MIN.is_positive());
+        assert!(i256::MIN.is_negative());
     }
 
     #[test]
