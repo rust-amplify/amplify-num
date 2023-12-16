@@ -78,20 +78,24 @@ use core::str::FromStr;
 
 use amplify_num::{i256, u256};
 
-bitflags! {
-    /// IEEE-754R 7: Default exception handling.
-    ///
-    /// UNDERFLOW or OVERFLOW are always returned or-ed with INEXACT.
-    #[must_use]
-    pub struct Status: u8 {
-        const OK = 0x00;
-        const INVALID_OP = 0x01;
-        const DIV_BY_ZERO = 0x02;
-        const OVERFLOW = 0x04;
-        const UNDERFLOW = 0x08;
-        const INEXACT = 0x10;
+mod status {
+    #![allow(clippy::bad_bit_mask)]
+    bitflags! {
+        /// IEEE-754R 7: Default exception handling.
+        ///
+        /// UNDERFLOW or OVERFLOW are always returned or-ed with INEXACT.
+        #[must_use]
+        pub struct Status: u8 {
+            const OK = 0x00;
+            const INVALID_OP = 0x01;
+            const DIV_BY_ZERO = 0x02;
+            const OVERFLOW = 0x04;
+            const UNDERFLOW = 0x08;
+            const INEXACT = 0x10;
+        }
     }
 }
+pub use status::Status;
 
 #[must_use]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]

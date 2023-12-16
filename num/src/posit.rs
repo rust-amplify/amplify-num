@@ -636,6 +636,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::nonminimal_bool)]
     fn posit_cmp_test() {
         assert!(Posit16::from(4.) < Posit16::from(5.));
         assert!(Posit16::from(0.) <= (Posit16::from(0.)));

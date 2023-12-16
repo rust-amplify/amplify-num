@@ -170,6 +170,7 @@ macro_rules! construct_smallint {
             /// Wrapping (modular) addition. Computes `self + rhs`, wrapping around at
             /// the boundary of the type.
             pub fn wrapping_add<T>(self, rhs: T) -> Self where T: Into<$inner> {
+                #[allow(clippy::modulo_one)]
                 Self(self.0.wrapping_add(rhs.into()) % Self::MAX.0)
             }
 
@@ -204,6 +205,7 @@ macro_rules! construct_smallint {
             /// Wrapping (modular) subtraction. Computes `self - rhs`, wrapping around at
             /// the boundary of the type.
             pub fn wrapping_sub<T>(self, rhs: T) -> Self where T: Into<$inner> {
+                #[allow(clippy::modulo_one)]
                 Self(self.0.wrapping_sub(rhs.into()) % Self::MAX.0)
             }
 
@@ -238,6 +240,7 @@ macro_rules! construct_smallint {
             /// Wrapping (modular) multiplication. Computes `self * rhs`, wrapping around at
             /// the boundary of the type.
             pub fn wrapping_mul<T>(self, rhs: T) -> Self where T: Into<$inner> {
+                #[allow(clippy::modulo_one)]
                 Self(self.0.wrapping_mul(rhs.into()) % Self::MAX.0)
             }
 
@@ -598,7 +601,7 @@ mod test {
     fn smallint_div_rem_0() {
         let u_2 = u2::MAX;
         let u_2_2 = u2::try_from(2).unwrap();
-        let u_2_half = (u2::try_from(u2::MAX / 2).unwrap(), u2::try_from(u2::MAX % 2).unwrap());
+        let u_2_half = (u2::MAX / 2, u2::MAX % 2);
         let u_2_zero = u2::ZERO;
 
         assert_eq!(u2::div_rem(u_2, u_2_2), Ok(u_2_half));
