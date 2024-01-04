@@ -3,7 +3,7 @@
 //
 // Written in 2014 by
 //     Andrew Poelstra <apoelstra@wpsoftware.net>
-// Updated in 2020-2021 by
+// Updated in 2020-2024 by
 //     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
 //
 // To the extent possible under law, the author(s) have dedicated all

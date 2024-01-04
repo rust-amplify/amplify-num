@@ -1,7 +1,7 @@
 // Rust language amplification library providing multiple generic trait
 // implementations, type wrappers, derive macros and other language enhancements
 //
-// Written in 2021 by
+// Written in 2021-2024 by
 //     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
 //
 // To the extent possible under law, the author(s) have dedicated all
@@ -364,6 +364,33 @@ construct_smallint!(
     1u32 << 24,
     doc = "24-bit unsigned integer in the range `0..16_777_216`"
 );
+construct_smallint!(
+    u40,
+    u64,
+    to_u64,
+    into_u64,
+    40,
+    1u64 << 40,
+    doc = "40-bit unsigned integer in the range `0..2^40`"
+);
+construct_smallint!(
+    u48,
+    u64,
+    to_u64,
+    into_u64,
+    48,
+    1u64 << 48,
+    doc = "48-bit unsigned integer in the range `0..2^48`"
+);
+construct_smallint!(
+    u56,
+    u64,
+    to_u64,
+    into_u64,
+    56,
+    1u64 << 56,
+    doc = "56-bit unsigned integer in the range `0..2^56`"
+);
 
 impl From<u1> for u2 {
     fn from(value: u1) -> Self { Self(value.0) }
@@ -457,6 +484,10 @@ impl From<u24> for i64 {
     fn from(val: u24) -> Self { val.0 as i64 }
 }
 
+impl From<u24> for i128 {
+    fn from(val: u24) -> Self { val.0 as i128 }
+}
+
 impl From<u24> for isize {
     fn from(val: u24) -> Self { val.0 as isize }
 }
@@ -465,14 +496,74 @@ impl From<u24> for u64 {
     fn from(val: u24) -> Self { val.0 as u64 }
 }
 
+impl From<u24> for u128 {
+    fn from(val: u24) -> Self { val.0 as u128 }
+}
+
 impl From<u24> for usize {
     fn from(val: u24) -> Self { val.0 as usize }
+}
+
+impl From<u48> for i64 {
+    fn from(val: u48) -> Self { val.0 as i64 }
+}
+
+impl From<u40> for i128 {
+    fn from(val: u40) -> Self { val.0 as i128 }
+}
+
+impl From<u40> for isize {
+    fn from(val: u40) -> Self { val.0 as isize }
+}
+
+impl From<u40> for u128 {
+    fn from(val: u40) -> Self { val.0 as u128 }
+}
+
+impl From<u40> for usize {
+    fn from(val: u40) -> Self { val.0 as usize }
+}
+
+impl From<u48> for i128 {
+    fn from(val: u48) -> Self { val.0 as i128 }
+}
+
+impl From<u48> for isize {
+    fn from(val: u48) -> Self { val.0 as isize }
+}
+
+impl From<u48> for u128 {
+    fn from(val: u48) -> Self { val.0 as u128 }
+}
+
+impl From<u48> for usize {
+    fn from(val: u48) -> Self { val.0 as usize }
+}
+
+impl From<u56> for i64 {
+    fn from(val: u56) -> Self { val.0 as i64 }
+}
+
+impl From<u56> for i128 {
+    fn from(val: u56) -> Self { val.0 as i128 }
+}
+
+impl From<u56> for isize {
+    fn from(val: u56) -> Self { val.0 as isize }
+}
+
+impl From<u56> for u128 {
+    fn from(val: u56) -> Self { val.0 as u128 }
+}
+
+impl From<u56> for usize {
+    fn from(val: u56) -> Self { val.0 as usize }
 }
 
 impl u24 {
     /// Create a native endian integer value from its representation as a byte
     /// array in little endian.
-    pub fn from_le_bytes(bytes: [u8; 3]) -> u24 {
+    pub fn from_le_bytes(bytes: [u8; 3]) -> Self {
         let mut inner = [0u8; 4];
         inner[..3].copy_from_slice(&bytes);
         Self(u32::from_le_bytes(inner))
@@ -488,7 +579,7 @@ impl u24 {
 
     /// Create a native endian integer value from its representation as a byte
     /// array in big endian.
-    pub fn from_be_bytes(bytes: [u8; 3]) -> u24 {
+    pub fn from_be_bytes(bytes: [u8; 3]) -> Self {
         let mut inner = [0u8; 4];
         inner[1..].copy_from_slice(&bytes);
         Self(u32::from_be_bytes(inner))
@@ -503,23 +594,118 @@ impl u24 {
     }
 
     /// Converts into `i32` type.
+    pub const fn to_i32(&self) -> i32 { self.0 as i32 }
+
+    /// Converts into `i64` type.
+    pub const fn to_i64(&self) -> i64 { self.0 as i64 }
+
+    /// Converts into `i128` type.
+    pub const fn to_i128(&self) -> i128 { self.0 as i128 }
+
+    /// Converts into `isize` type.
+    pub const fn to_isize(&self) -> isize { self.0 as isize }
+
+    /// Converts into `u64` type.
+    pub const fn to_u64(&self) -> u64 { self.0 as u64 }
+
+    /// Converts into `i128` type.
+    pub const fn to_u128(&self) -> u128 { self.0 as u128 }
+
+    /// Converts into `usize` type.
+    pub const fn to_usize(&self) -> usize { self.0 as usize }
+
+    /// Converts into `i32` type.
     pub const fn into_i32(self) -> i32 { self.0 as i32 }
 
     /// Converts into `i64` type.
     pub const fn into_i64(self) -> i64 { self.0 as i64 }
 
+    /// Converts into `i128` type.
+    pub const fn into_i128(self) -> i128 { self.0 as i128 }
+
     /// Converts into `isize` type.
     pub const fn into_isize(self) -> isize { self.0 as isize }
-
-    /// Converts into `u32` type.
-    pub const fn into_u32(self) -> u32 { self.0 }
 
     /// Converts into `u64` type.
     pub const fn into_u64(self) -> u64 { self.0 as u64 }
 
+    /// Converts into `u128` type.
+    pub const fn into_u128(self) -> u128 { self.0 as u128 }
+
     /// Converts into `usize` type.
     pub const fn into_usize(self) -> usize { self.0 as usize }
 }
+
+macro_rules! impl_subu64 {
+    ($ty:ty, $len:literal) => {
+        impl $ty {
+            /// Create a native endian integer value from its representation as a byte
+            /// array in little endian.
+            pub fn from_le_bytes(bytes: [u8; $len]) -> Self {
+                let mut inner = [0u8; 8];
+                inner[..$len].copy_from_slice(&bytes);
+                Self(u64::from_le_bytes(inner))
+            }
+
+            /// Return the memory representation of this integer as a byte array in
+            /// little-endian byte order.
+            pub fn to_le_bytes(self) -> [u8; $len] {
+                let mut inner = [0u8; $len];
+                inner.copy_from_slice(&self.0.to_le_bytes()[..$len]);
+                inner
+            }
+
+            /// Create a native endian integer value from its representation as a byte
+            /// array in big endian.
+            pub fn from_be_bytes(bytes: [u8; $len]) -> Self {
+                let mut inner = [0u8; 8];
+                inner[(8 - $len)..].copy_from_slice(&bytes);
+                Self(u64::from_be_bytes(inner))
+            }
+
+            /// Return the memory representation of this integer as a byte array in
+            /// big-endian byte order.
+            pub fn to_be_bytes(self) -> [u8; $len] {
+                let mut inner = [0u8; $len];
+                inner.copy_from_slice(&self.0.to_be_bytes()[(8 - $len)..]);
+                inner
+            }
+
+            /// Converts into `i64` type.
+            pub const fn to_i64(&self) -> i64 { self.0 as i64 }
+
+            /// Converts into `i128` type.
+            pub const fn to_i128(&self) -> i128 { self.0 as i128 }
+
+            /// Converts into `isize` type.
+            pub const fn to_isize(&self) -> isize { self.0 as isize }
+
+            /// Converts into `i128` type.
+            pub const fn to_u128(&self) -> u128 { self.0 as u128 }
+
+            /// Converts into `usize` type.
+            pub const fn to_usize(&self) -> usize { self.0 as usize }
+
+            /// Converts into `i64` type.
+            pub const fn into_i64(self) -> i64 { self.0 as i64 }
+
+            /// Converts into `i128` type.
+            pub const fn into_i128(self) -> i128 { self.0 as i128 }
+
+            /// Converts into `isize` type.
+            pub const fn into_isize(self) -> isize { self.0 as isize }
+
+            /// Converts into `u128` type.
+            pub const fn into_u128(self) -> u128 { self.0 as u128 }
+
+            /// Converts into `usize` type.
+            pub const fn into_usize(self) -> usize { self.0 as usize }
+        }
+    };
+}
+impl_subu64!(u40, 5);
+impl_subu64!(u48, 6);
+impl_subu64!(u56, 7);
 
 #[cfg(test)]
 mod test {
