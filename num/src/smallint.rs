@@ -289,7 +289,7 @@ macro_rules! impl_op {
 construct_smallint!(
     u1,
     u8,
-    into_u8,
+    to_u8,
     1,
     2,
     doc = "1-bit unsigned integer in the range `0..1`. It can be used instead of `bool` when \
