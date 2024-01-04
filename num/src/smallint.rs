@@ -22,7 +22,7 @@ use core::ops::{
 use crate::error::{DivError, OverflowError};
 
 macro_rules! construct_smallint {
-    ($ty:ident, $inner:ident, $to:ident, $bits:literal, $max:expr, $doc:meta) => {
+    ($ty:ident, $inner:ident, $to:ident, $into:ident, $bits:literal, $max:expr, $doc:meta) => {
         #[$doc]
         #[derive(PartialEq, Eq, Debug, Copy, Clone, Default, PartialOrd, Ord, Hash)]
         #[cfg_attr(
@@ -58,7 +58,12 @@ macro_rules! construct_smallint {
             }
 
             /// Returns inner `u8` representation, which is always less or equal to `Self::MAX`
-            pub const fn $to(self) -> $inner {
+            pub const fn $to(&self) -> $inner {
+                self.0 as $inner
+            }
+
+            /// Returns inner `u8` representation, which is always less or equal to `Self::MAX`
+            pub const fn $into(self) -> $inner {
                 self.0 as $inner
             }
         }
@@ -290,21 +295,71 @@ construct_smallint!(
     u1,
     u8,
     to_u8,
+    into_u8,
     1,
     2,
     doc = "1-bit unsigned integer in the range `0..1`. It can be used instead of `bool` when \
            1-bit numeric (and not boolean) arithmetic is required"
 );
-construct_smallint!(u2, u8, to_u8, 2, 4, doc = "2-bit unsigned integer in the range `0..4`");
-construct_smallint!(u3, u8, to_u8, 3, 8, doc = "3-bit unsigned integer in the range `0..8`");
-construct_smallint!(u4, u8, to_u8, 4, 16, doc = "4-bit unsigned integer in the range `0..16`");
-construct_smallint!(u5, u8, to_u8, 5, 32, doc = "5-bit unsigned integer in the range `0..32`");
-construct_smallint!(u6, u8, to_u8, 6, 64, doc = "6-bit unsigned integer in the range `0..64`");
-construct_smallint!(u7, u8, to_u8, 7, 128, doc = "7-bit unsigned integer in the range `0..128`");
+construct_smallint!(
+    u2,
+    u8,
+    to_u8,
+    into_u8,
+    2,
+    4,
+    doc = "2-bit unsigned integer in the range `0..4`"
+);
+construct_smallint!(
+    u3,
+    u8,
+    to_u8,
+    into_u8,
+    3,
+    8,
+    doc = "3-bit unsigned integer in the range `0..8`"
+);
+construct_smallint!(
+    u4,
+    u8,
+    to_u8,
+    into_u8,
+    4,
+    16,
+    doc = "4-bit unsigned integer in the range `0..16`"
+);
+construct_smallint!(
+    u5,
+    u8,
+    to_u8,
+    into_u8,
+    5,
+    32,
+    doc = "5-bit unsigned integer in the range `0..32`"
+);
+construct_smallint!(
+    u6,
+    u8,
+    to_u8,
+    into_u8,
+    6,
+    64,
+    doc = "6-bit unsigned integer in the range `0..64`"
+);
+construct_smallint!(
+    u7,
+    u8,
+    to_u8,
+    into_u8,
+    7,
+    128,
+    doc = "7-bit unsigned integer in the range `0..128`"
+);
 construct_smallint!(
     u24,
     u32,
     to_u32,
+    into_u32,
     24,
     1u32 << 24,
     doc = "24-bit unsigned integer in the range `0..16_777_216`"
