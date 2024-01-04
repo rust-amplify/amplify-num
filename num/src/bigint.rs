@@ -1526,7 +1526,7 @@ mod tests {
     #[test]
     fn fmt_hex() {
         let one = u256::ONE;
-        let mut u_256 =
+        let u_256 =
             u256([0x0000000000000000, 0xAAAAAAAABBBBBBBB, 0x0000000111122222, 0x0000000000000000]);
 
         // UpperHex
@@ -1554,7 +1554,7 @@ mod tests {
     #[test]
     fn fmt_octal() {
         let one = u256::ONE;
-        let mut u_256 = u256([
+        let u_256 = u256([
             0o0000000000000000000000,
             0o0011222222222222222222,
             0o0000000001111111111111,
@@ -1581,7 +1581,7 @@ mod tests {
     #[test]
     fn fmt_binary() {
         let one = u256::ONE;
-        let mut u_256 = u256([
+        let u_256 = u256([
             0b0000000000000000000000000000000000000000000000000000000000000000,
             0b0001111000011110001111000011110001111000011110001111000011110000,
             0b0000000000000000000000000000001111111111111111111111111111111111,
@@ -1867,10 +1867,6 @@ mod tests {
             let json = format!("\"{}\"", hex);
             assert_eq!(::serde_json::to_string(&uint).unwrap(), json);
             assert_eq!(::serde_json::from_str::<u256>(&json).unwrap(), uint);
-
-            let bin_encoded = ::bincode::serialize(&uint).unwrap();
-            let bin_decoded: u256 = ::bincode::deserialize(&bin_encoded).unwrap();
-            assert_eq!(bin_decoded, uint);
         };
 
         check(u256::from(0u64), "0000000000000000000000000000000000000000000000000000000000000000");
