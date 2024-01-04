@@ -17,11 +17,11 @@
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 /// Error indicating that a value does not fit integer dimension
-pub struct OverflowError {
+pub struct OverflowError<T = usize> {
     /// Integer bit size
-    pub max: usize,
+    pub max: T,
     /// Value that overflows
-    pub value: usize,
+    pub value: T,
 }
 
 impl core::fmt::Display for OverflowError {
