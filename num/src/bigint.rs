@@ -4,7 +4,7 @@
 // Written in 2014 by
 //     Andrew Poelstra <apoelstra@wpsoftware.net>
 // Refactored & fixed in 2021-2024 by
-//     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
+//     Dr. Maxim Orlovsky <orlovsky@ubideco.org>
 //
 // To the extent possible under law, the author(s) have dedicated all
 // copyright and related and neighboring rights to this software to
