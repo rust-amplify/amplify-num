@@ -15,7 +15,7 @@
 
 //! Custom-sized numeric types
 //!
-//! Implementation of a various integer types with custom bit dimension. These
+//! Implementation of a various integer types with custom bit dimension. This
 //! includes:
 //! * large signed and unsigned integers, named *large int types* (256, 512,
 //!   1024-bit)

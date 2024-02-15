@@ -713,6 +713,7 @@ mod test {
 
     #[test]
     fn ubit_test() {
+        let mut u_1 = u1::try_from(u1::MAX.to_u8()).unwrap();
         let mut u_2 = u2::try_from(u2::MAX.to_u8()).unwrap();
         let mut u_3 = u3::try_from(u3::MAX.to_u8()).unwrap();
         let mut u_4 = u4::try_from(u4::MAX.to_u8()).unwrap();
@@ -721,6 +722,7 @@ mod test {
         let mut u_7 = u7::try_from(u7::MAX.to_u8()).unwrap();
         let mut u_24 = u24::try_from(u24::MAX.to_u32()).unwrap();
 
+        assert_eq!(u_1, u1::with(1));
         assert_eq!(u_2, u2::with(3));
         assert_eq!(u_3, u3::with(7));
         assert_eq!(u_4, u4::with(15));
@@ -728,6 +730,7 @@ mod test {
         assert_eq!(u_6, u6::with(63));
         assert_eq!(u_7, u7::with(127));
 
+        assert_eq!(u_1.to_u8(), 1u8);
         assert_eq!(u_2.to_u8(), 3u8);
         assert_eq!(u_3.to_u8(), 7u8);
         assert_eq!(u_4.to_u8(), 15u8);
@@ -736,6 +739,7 @@ mod test {
         assert_eq!(u_7.to_u8(), 127u8);
         assert_eq!(u_24.to_u32(), (1 << 24) - 1);
 
+        u_1 -= 1;
         u_2 -= 1;
         u_3 -= 1;
         u_4 -= 1;
@@ -744,6 +748,7 @@ mod test {
         u_7 -= 1;
         u_24 -= 1u32;
 
+        assert_eq!(u_1.to_u8(), 0u8);
         assert_eq!(u_2.to_u8(), 2u8);
         assert_eq!(u_3.to_u8(), 6u8);
         assert_eq!(u_4.to_u8(), 14u8);
@@ -751,6 +756,10 @@ mod test {
         assert_eq!(u_6.to_u8(), 62u8);
         assert_eq!(u_7.to_u8(), 126u8);
         assert_eq!(u_24.to_u32(), (1 << 24) - 2);
+
+        u_1 /= 2;
+        u_1 *= 2;
+        u_1 += 1;
 
         u_2 /= 2;
         u_2 *= 2;
@@ -780,6 +789,7 @@ mod test {
         u_24 *= 2u32;
         u_24 += 1u32;
 
+        assert_eq!(u_1.to_u8(), 1u8);
         assert_eq!(u_2.to_u8(), 3u8);
         assert_eq!(u_3.to_u8(), 7u8);
         assert_eq!(u_4.to_u8(), 15u8);
@@ -788,6 +798,7 @@ mod test {
         assert_eq!(u_7.to_u8(), 127u8);
         assert_eq!(u_24.to_u32(), (1 << 24) - 1);
 
+        assert_eq!(u_1.to_u8() % 2, 1);
         assert_eq!(u_2.to_u8() % 2, 1);
         assert_eq!(u_3.to_u8() % 2, 1);
         assert_eq!(u_4.to_u8() % 2, 1);
@@ -796,6 +807,10 @@ mod test {
         assert_eq!(u_7.to_u8() % 2, 1);
         assert_eq!(u_24.to_u32() % 2, 1);
     }
+
+    #[test]
+    #[should_panic(expected = "OverflowError { max: 1, value: 2 }")]
+    fn u1_overflow_test() { u1::try_from(2).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 3, value: 4 }")]
@@ -858,6 +873,7 @@ mod test {
 
     #[test]
     fn fmt_test() {
+        let u_1 = u1::MAX;
         let u_2 = u2::MAX;
         let u_3 = u3::MAX;
         let u_4 = u4::MAX;
@@ -867,6 +883,7 @@ mod test {
         let u_24 = u24::MAX;
 
         // UpperHex
+        assert_eq!(format!("{:X}", u_1), "1");
         assert_eq!(format!("{:X}", u_2), "3");
         assert_eq!(format!("{:X}", u_3), "7");
         assert_eq!(format!("{:X}", u_4), "F");
@@ -874,6 +891,7 @@ mod test {
         assert_eq!(format!("{:X}", u_6), "3F");
         assert_eq!(format!("{:X}", u_7), "7F");
         assert_eq!(format!("{:X}", u_24), "FFFFFF");
+        assert_eq!(format!("{:#X}", u_1), "0x1");
         assert_eq!(format!("{:#X}", u_2), "0x3");
         assert_eq!(format!("{:#X}", u_3), "0x7");
         assert_eq!(format!("{:#X}", u_4), "0xF");
@@ -883,6 +901,7 @@ mod test {
         assert_eq!(format!("{:#X}", u_24), "0xFFFFFF");
 
         // LowerHex
+        assert_eq!(format!("{:x}", u_1), "1");
         assert_eq!(format!("{:x}", u_2), "3");
         assert_eq!(format!("{:x}", u_3), "7");
         assert_eq!(format!("{:x}", u_4), "f");
@@ -890,6 +909,7 @@ mod test {
         assert_eq!(format!("{:x}", u_6), "3f");
         assert_eq!(format!("{:x}", u_7), "7f");
         assert_eq!(format!("{:x}", u_24), "ffffff");
+        assert_eq!(format!("{:#x}", u_1), "0x1");
         assert_eq!(format!("{:#x}", u_2), "0x3");
         assert_eq!(format!("{:#x}", u_3), "0x7");
         assert_eq!(format!("{:#x}", u_4), "0xf");
@@ -899,6 +919,7 @@ mod test {
         assert_eq!(format!("{:#x}", u_24), "0xffffff");
 
         // Octal
+        assert_eq!(format!("{:o}", u_1), "1");
         assert_eq!(format!("{:o}", u_2), "3");
         assert_eq!(format!("{:o}", u_3), "7");
         assert_eq!(format!("{:o}", u_4), "17");
@@ -906,6 +927,7 @@ mod test {
         assert_eq!(format!("{:o}", u_6), "77");
         assert_eq!(format!("{:o}", u_7), "177");
         assert_eq!(format!("{:o}", u_24), "77777777");
+        assert_eq!(format!("{:#o}", u_1), "0o1");
         assert_eq!(format!("{:#o}", u_2), "0o3");
         assert_eq!(format!("{:#o}", u_3), "0o7");
         assert_eq!(format!("{:#o}", u_4), "0o17");
@@ -915,6 +937,7 @@ mod test {
         assert_eq!(format!("{:#o}", u_24), "0o77777777");
 
         // Binary
+        assert_eq!(format!("{:b}", u_1), "1");
         assert_eq!(format!("{:b}", u_2), "11");
         assert_eq!(format!("{:b}", u_3), "111");
         assert_eq!(format!("{:b}", u_4), "1111");
@@ -922,6 +945,7 @@ mod test {
         assert_eq!(format!("{:b}", u_6), "111111");
         assert_eq!(format!("{:b}", u_7), "1111111");
         assert_eq!(format!("{:b}", u_24), "111111111111111111111111");
+        assert_eq!(format!("{:#b}", u_1), "0b1");
         assert_eq!(format!("{:#b}", u_2), "0b11");
         assert_eq!(format!("{:#b}", u_3), "0b111");
         assert_eq!(format!("{:#b}", u_4), "0b1111");
