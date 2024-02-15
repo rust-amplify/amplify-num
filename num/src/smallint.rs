@@ -1,8 +1,8 @@
 // Rust language amplification library providing multiple generic trait
 // implementations, type wrappers, derive macros and other language enhancements
 //
-// Written in 2021 by
-//     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
+// Written in 2021-2024 by
+//     Dr. Maxim Orlovsky <orlovsky@ubideco.org>
 //
 // To the extent possible under law, the author(s) have dedicated all
 // copyright and related and neighboring rights to this software to
@@ -22,7 +22,7 @@ use core::ops::{
 use crate::error::{DivError, OverflowError};
 
 macro_rules! construct_smallint {
-    ($ty:ident, $inner:ident, $to:ident, $bits:literal, $max:expr, $doc:meta) => {
+    ($ty:ident, $inner:ident, $to:ident, $into:ident, $bits:literal, $max:expr, $doc:meta) => {
         #[$doc]
         #[derive(PartialEq, Eq, Debug, Copy, Clone, Default, PartialOrd, Ord, Hash)]
         #[cfg_attr(
@@ -41,7 +41,7 @@ macro_rules! construct_smallint {
             pub const MIN: Self = Self(0);
 
             /// Maximal value
-            pub const MAX: Self = Self($max - 1);
+            pub const MAX: Self = Self($max);
 
             /// One value
             pub const ONE: Self = Self(1);
@@ -53,22 +53,27 @@ macro_rules! construct_smallint {
             ///
             /// Panics if the value exceeds `Self::MAX`
             pub const fn with(value: $inner) -> Self {
-                assert!(value < $max, "provided value exceeds Self::MAX");
+                assert!(value <= $max, "provided value exceeds Self::MAX");
                 Self(value)
             }
 
             /// Returns inner `u8` representation, which is always less or equal to `Self::MAX`
-            pub const fn $to(self) -> $inner {
+            pub const fn $to(&self) -> $inner {
+                self.0 as $inner
+            }
+
+            /// Returns inner `u8` representation, which is always less or equal to `Self::MAX`
+            pub const fn $into(self) -> $inner {
                 self.0 as $inner
             }
         }
 
         impl ::core::convert::TryFrom<$inner> for $ty {
-            type Error = OverflowError;
+            type Error = OverflowError<$inner>;
             #[inline]
             fn try_from(value: $inner) -> Result<Self, Self::Error> {
-                if value >= $max {
-                    Err(OverflowError { max: $max as usize - 1, value: value as usize })
+                if value > $max {
+                    Err(OverflowError { max: $max, value: value })
                 } else {
                     Ok(Self(value))
                 }
@@ -289,25 +294,102 @@ macro_rules! impl_op {
 construct_smallint!(
     u1,
     u8,
+    to_u8,
     into_u8,
     1,
-    2,
+    1,
     doc = "1-bit unsigned integer in the range `0..1`. It can be used instead of `bool` when \
            1-bit numeric (and not boolean) arithmetic is required"
 );
-construct_smallint!(u2, u8, to_u8, 2, 4, doc = "2-bit unsigned integer in the range `0..4`");
-construct_smallint!(u3, u8, to_u8, 3, 8, doc = "3-bit unsigned integer in the range `0..8`");
-construct_smallint!(u4, u8, to_u8, 4, 16, doc = "4-bit unsigned integer in the range `0..16`");
-construct_smallint!(u5, u8, to_u8, 5, 32, doc = "5-bit unsigned integer in the range `0..32`");
-construct_smallint!(u6, u8, to_u8, 6, 64, doc = "6-bit unsigned integer in the range `0..64`");
-construct_smallint!(u7, u8, to_u8, 7, 128, doc = "7-bit unsigned integer in the range `0..128`");
+construct_smallint!(
+    u2,
+    u8,
+    to_u8,
+    into_u8,
+    2,
+    3,
+    doc = "2-bit unsigned integer in the range `0..4`"
+);
+construct_smallint!(
+    u3,
+    u8,
+    to_u8,
+    into_u8,
+    3,
+    7,
+    doc = "3-bit unsigned integer in the range `0..8`"
+);
+construct_smallint!(
+    u4,
+    u8,
+    to_u8,
+    into_u8,
+    4,
+    15,
+    doc = "4-bit unsigned integer in the range `0..16`"
+);
+construct_smallint!(
+    u5,
+    u8,
+    to_u8,
+    into_u8,
+    5,
+    31,
+    doc = "5-bit unsigned integer in the range `0..32`"
+);
+construct_smallint!(
+    u6,
+    u8,
+    to_u8,
+    into_u8,
+    6,
+    63,
+    doc = "6-bit unsigned integer in the range `0..64`"
+);
+construct_smallint!(
+    u7,
+    u8,
+    to_u8,
+    into_u8,
+    7,
+    127,
+    doc = "7-bit unsigned integer in the range `0..128`"
+);
 construct_smallint!(
     u24,
     u32,
     to_u32,
+    into_u32,
     24,
-    1u32 << 24,
+    0xFF_FF_FF,
     doc = "24-bit unsigned integer in the range `0..16_777_216`"
+);
+construct_smallint!(
+    u40,
+    u64,
+    to_u64,
+    into_u64,
+    40,
+    0xFF_FFFF_FFFF,
+    doc = "40-bit unsigned integer in the range `0..2^40`"
+);
+construct_smallint!(
+    u48,
+    u64,
+    to_u64,
+    into_u64,
+    48,
+    0xFFFF_FFFF_FFFF,
+    doc = "48-bit unsigned integer in the range `0..2^48`"
+);
+construct_smallint!(
+    u56,
+    u64,
+    to_u64,
+    into_u64,
+    56,
+    0xFF_FFFF_FFFF_FFFF,
+    doc = "56-bit unsigned integer in the range `0..2^56`"
 );
 
 impl From<u1> for u2 {
@@ -402,6 +484,10 @@ impl From<u24> for i64 {
     fn from(val: u24) -> Self { val.0 as i64 }
 }
 
+impl From<u24> for i128 {
+    fn from(val: u24) -> Self { val.0 as i128 }
+}
+
 impl From<u24> for isize {
     fn from(val: u24) -> Self { val.0 as isize }
 }
@@ -410,14 +496,74 @@ impl From<u24> for u64 {
     fn from(val: u24) -> Self { val.0 as u64 }
 }
 
+impl From<u24> for u128 {
+    fn from(val: u24) -> Self { val.0 as u128 }
+}
+
 impl From<u24> for usize {
     fn from(val: u24) -> Self { val.0 as usize }
+}
+
+impl From<u48> for i64 {
+    fn from(val: u48) -> Self { val.0 as i64 }
+}
+
+impl From<u40> for i128 {
+    fn from(val: u40) -> Self { val.0 as i128 }
+}
+
+impl From<u40> for isize {
+    fn from(val: u40) -> Self { val.0 as isize }
+}
+
+impl From<u40> for u128 {
+    fn from(val: u40) -> Self { val.0 as u128 }
+}
+
+impl From<u40> for usize {
+    fn from(val: u40) -> Self { val.0 as usize }
+}
+
+impl From<u48> for i128 {
+    fn from(val: u48) -> Self { val.0 as i128 }
+}
+
+impl From<u48> for isize {
+    fn from(val: u48) -> Self { val.0 as isize }
+}
+
+impl From<u48> for u128 {
+    fn from(val: u48) -> Self { val.0 as u128 }
+}
+
+impl From<u48> for usize {
+    fn from(val: u48) -> Self { val.0 as usize }
+}
+
+impl From<u56> for i64 {
+    fn from(val: u56) -> Self { val.0 as i64 }
+}
+
+impl From<u56> for i128 {
+    fn from(val: u56) -> Self { val.0 as i128 }
+}
+
+impl From<u56> for isize {
+    fn from(val: u56) -> Self { val.0 as isize }
+}
+
+impl From<u56> for u128 {
+    fn from(val: u56) -> Self { val.0 as u128 }
+}
+
+impl From<u56> for usize {
+    fn from(val: u56) -> Self { val.0 as usize }
 }
 
 impl u24 {
     /// Create a native endian integer value from its representation as a byte
     /// array in little endian.
-    pub fn from_le_bytes(bytes: [u8; 3]) -> u24 {
+    pub fn from_le_bytes(bytes: [u8; 3]) -> Self {
         let mut inner = [0u8; 4];
         inner[..3].copy_from_slice(&bytes);
         Self(u32::from_le_bytes(inner))
@@ -433,7 +579,7 @@ impl u24 {
 
     /// Create a native endian integer value from its representation as a byte
     /// array in big endian.
-    pub fn from_be_bytes(bytes: [u8; 3]) -> u24 {
+    pub fn from_be_bytes(bytes: [u8; 3]) -> Self {
         let mut inner = [0u8; 4];
         inner[1..].copy_from_slice(&bytes);
         Self(u32::from_be_bytes(inner))
@@ -448,23 +594,118 @@ impl u24 {
     }
 
     /// Converts into `i32` type.
+    pub const fn to_i32(&self) -> i32 { self.0 as i32 }
+
+    /// Converts into `i64` type.
+    pub const fn to_i64(&self) -> i64 { self.0 as i64 }
+
+    /// Converts into `i128` type.
+    pub const fn to_i128(&self) -> i128 { self.0 as i128 }
+
+    /// Converts into `isize` type.
+    pub const fn to_isize(&self) -> isize { self.0 as isize }
+
+    /// Converts into `u64` type.
+    pub const fn to_u64(&self) -> u64 { self.0 as u64 }
+
+    /// Converts into `i128` type.
+    pub const fn to_u128(&self) -> u128 { self.0 as u128 }
+
+    /// Converts into `usize` type.
+    pub const fn to_usize(&self) -> usize { self.0 as usize }
+
+    /// Converts into `i32` type.
     pub const fn into_i32(self) -> i32 { self.0 as i32 }
 
     /// Converts into `i64` type.
     pub const fn into_i64(self) -> i64 { self.0 as i64 }
 
+    /// Converts into `i128` type.
+    pub const fn into_i128(self) -> i128 { self.0 as i128 }
+
     /// Converts into `isize` type.
     pub const fn into_isize(self) -> isize { self.0 as isize }
-
-    /// Converts into `u32` type.
-    pub const fn into_u32(self) -> u32 { self.0 }
 
     /// Converts into `u64` type.
     pub const fn into_u64(self) -> u64 { self.0 as u64 }
 
+    /// Converts into `u128` type.
+    pub const fn into_u128(self) -> u128 { self.0 as u128 }
+
     /// Converts into `usize` type.
     pub const fn into_usize(self) -> usize { self.0 as usize }
 }
+
+macro_rules! impl_subu64 {
+    ($ty:ty, $len:literal) => {
+        impl $ty {
+            /// Create a native endian integer value from its representation as a byte
+            /// array in little endian.
+            pub fn from_le_bytes(bytes: [u8; $len]) -> Self {
+                let mut inner = [0u8; 8];
+                inner[..$len].copy_from_slice(&bytes);
+                Self(u64::from_le_bytes(inner))
+            }
+
+            /// Return the memory representation of this integer as a byte array in
+            /// little-endian byte order.
+            pub fn to_le_bytes(self) -> [u8; $len] {
+                let mut inner = [0u8; $len];
+                inner.copy_from_slice(&self.0.to_le_bytes()[..$len]);
+                inner
+            }
+
+            /// Create a native endian integer value from its representation as a byte
+            /// array in big endian.
+            pub fn from_be_bytes(bytes: [u8; $len]) -> Self {
+                let mut inner = [0u8; 8];
+                inner[(8 - $len)..].copy_from_slice(&bytes);
+                Self(u64::from_be_bytes(inner))
+            }
+
+            /// Return the memory representation of this integer as a byte array in
+            /// big-endian byte order.
+            pub fn to_be_bytes(self) -> [u8; $len] {
+                let mut inner = [0u8; $len];
+                inner.copy_from_slice(&self.0.to_be_bytes()[(8 - $len)..]);
+                inner
+            }
+
+            /// Converts into `i64` type.
+            pub const fn to_i64(&self) -> i64 { self.0 as i64 }
+
+            /// Converts into `i128` type.
+            pub const fn to_i128(&self) -> i128 { self.0 as i128 }
+
+            /// Converts into `isize` type.
+            pub const fn to_isize(&self) -> isize { self.0 as isize }
+
+            /// Converts into `i128` type.
+            pub const fn to_u128(&self) -> u128 { self.0 as u128 }
+
+            /// Converts into `usize` type.
+            pub const fn to_usize(&self) -> usize { self.0 as usize }
+
+            /// Converts into `i64` type.
+            pub const fn into_i64(self) -> i64 { self.0 as i64 }
+
+            /// Converts into `i128` type.
+            pub const fn into_i128(self) -> i128 { self.0 as i128 }
+
+            /// Converts into `isize` type.
+            pub const fn into_isize(self) -> isize { self.0 as isize }
+
+            /// Converts into `u128` type.
+            pub const fn into_u128(self) -> u128 { self.0 as u128 }
+
+            /// Converts into `usize` type.
+            pub const fn into_usize(self) -> usize { self.0 as usize }
+        }
+    };
+}
+impl_subu64!(u40, 5);
+impl_subu64!(u48, 6);
+impl_subu64!(u56, 7);
 
 #[cfg(test)]
 mod test {
@@ -472,6 +713,7 @@ mod test {
 
     #[test]
     fn ubit_test() {
+        let mut u_1 = u1::try_from(u1::MAX.to_u8()).unwrap();
         let mut u_2 = u2::try_from(u2::MAX.to_u8()).unwrap();
         let mut u_3 = u3::try_from(u3::MAX.to_u8()).unwrap();
         let mut u_4 = u4::try_from(u4::MAX.to_u8()).unwrap();
@@ -480,6 +722,7 @@ mod test {
         let mut u_7 = u7::try_from(u7::MAX.to_u8()).unwrap();
         let mut u_24 = u24::try_from(u24::MAX.to_u32()).unwrap();
 
+        assert_eq!(u_1, u1::with(1));
         assert_eq!(u_2, u2::with(3));
         assert_eq!(u_3, u3::with(7));
         assert_eq!(u_4, u4::with(15));
@@ -487,6 +730,7 @@ mod test {
         assert_eq!(u_6, u6::with(63));
         assert_eq!(u_7, u7::with(127));
 
+        assert_eq!(u_1.to_u8(), 1u8);
         assert_eq!(u_2.to_u8(), 3u8);
         assert_eq!(u_3.to_u8(), 7u8);
         assert_eq!(u_4.to_u8(), 15u8);
@@ -495,6 +739,7 @@ mod test {
         assert_eq!(u_7.to_u8(), 127u8);
         assert_eq!(u_24.to_u32(), (1 << 24) - 1);
 
+        u_1 -= 1;
         u_2 -= 1;
         u_3 -= 1;
         u_4 -= 1;
@@ -503,6 +748,7 @@ mod test {
         u_7 -= 1;
         u_24 -= 1u32;
 
+        assert_eq!(u_1.to_u8(), 0u8);
         assert_eq!(u_2.to_u8(), 2u8);
         assert_eq!(u_3.to_u8(), 6u8);
         assert_eq!(u_4.to_u8(), 14u8);
@@ -510,6 +756,10 @@ mod test {
         assert_eq!(u_6.to_u8(), 62u8);
         assert_eq!(u_7.to_u8(), 126u8);
         assert_eq!(u_24.to_u32(), (1 << 24) - 2);
+
+        u_1 /= 2;
+        u_1 *= 2;
+        u_1 += 1;
 
         u_2 /= 2;
         u_2 *= 2;
@@ -539,6 +789,7 @@ mod test {
         u_24 *= 2u32;
         u_24 += 1u32;
 
+        assert_eq!(u_1.to_u8(), 1u8);
         assert_eq!(u_2.to_u8(), 3u8);
         assert_eq!(u_3.to_u8(), 7u8);
         assert_eq!(u_4.to_u8(), 15u8);
@@ -547,6 +798,7 @@ mod test {
         assert_eq!(u_7.to_u8(), 127u8);
         assert_eq!(u_24.to_u32(), (1 << 24) - 1);
 
+        assert_eq!(u_1.to_u8() % 2, 1);
         assert_eq!(u_2.to_u8() % 2, 1);
         assert_eq!(u_3.to_u8() % 2, 1);
         assert_eq!(u_4.to_u8() % 2, 1);
@@ -555,6 +807,10 @@ mod test {
         assert_eq!(u_7.to_u8() % 2, 1);
         assert_eq!(u_24.to_u32() % 2, 1);
     }
+
+    #[test]
+    #[should_panic(expected = "OverflowError { max: 1, value: 2 }")]
+    fn u1_overflow_test() { u1::try_from(2).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 3, value: 4 }")]
@@ -617,6 +873,7 @@ mod test {
 
     #[test]
     fn fmt_test() {
+        let u_1 = u1::MAX;
         let u_2 = u2::MAX;
         let u_3 = u3::MAX;
         let u_4 = u4::MAX;
@@ -626,6 +883,7 @@ mod test {
         let u_24 = u24::MAX;
 
         // UpperHex
+        assert_eq!(format!("{:X}", u_1), "1");
         assert_eq!(format!("{:X}", u_2), "3");
         assert_eq!(format!("{:X}", u_3), "7");
         assert_eq!(format!("{:X}", u_4), "F");
@@ -633,6 +891,7 @@ mod test {
         assert_eq!(format!("{:X}", u_6), "3F");
         assert_eq!(format!("{:X}", u_7), "7F");
         assert_eq!(format!("{:X}", u_24), "FFFFFF");
+        assert_eq!(format!("{:#X}", u_1), "0x1");
         assert_eq!(format!("{:#X}", u_2), "0x3");
         assert_eq!(format!("{:#X}", u_3), "0x7");
         assert_eq!(format!("{:#X}", u_4), "0xF");
@@ -642,6 +901,7 @@ mod test {
         assert_eq!(format!("{:#X}", u_24), "0xFFFFFF");
 
         // LowerHex
+        assert_eq!(format!("{:x}", u_1), "1");
         assert_eq!(format!("{:x}", u_2), "3");
         assert_eq!(format!("{:x}", u_3), "7");
         assert_eq!(format!("{:x}", u_4), "f");
@@ -649,6 +909,7 @@ mod test {
         assert_eq!(format!("{:x}", u_6), "3f");
         assert_eq!(format!("{:x}", u_7), "7f");
         assert_eq!(format!("{:x}", u_24), "ffffff");
+        assert_eq!(format!("{:#x}", u_1), "0x1");
         assert_eq!(format!("{:#x}", u_2), "0x3");
         assert_eq!(format!("{:#x}", u_3), "0x7");
         assert_eq!(format!("{:#x}", u_4), "0xf");
@@ -658,6 +919,7 @@ mod test {
         assert_eq!(format!("{:#x}", u_24), "0xffffff");
 
         // Octal
+        assert_eq!(format!("{:o}", u_1), "1");
         assert_eq!(format!("{:o}", u_2), "3");
         assert_eq!(format!("{:o}", u_3), "7");
         assert_eq!(format!("{:o}", u_4), "17");
@@ -665,6 +927,7 @@ mod test {
         assert_eq!(format!("{:o}", u_6), "77");
         assert_eq!(format!("{:o}", u_7), "177");
         assert_eq!(format!("{:o}", u_24), "77777777");
+        assert_eq!(format!("{:#o}", u_1), "0o1");
         assert_eq!(format!("{:#o}", u_2), "0o3");
         assert_eq!(format!("{:#o}", u_3), "0o7");
         assert_eq!(format!("{:#o}", u_4), "0o17");
@@ -674,6 +937,7 @@ mod test {
         assert_eq!(format!("{:#o}", u_24), "0o77777777");
 
         // Binary
+        assert_eq!(format!("{:b}", u_1), "1");
         assert_eq!(format!("{:b}", u_2), "11");
         assert_eq!(format!("{:b}", u_3), "111");
         assert_eq!(format!("{:b}", u_4), "1111");
@@ -681,6 +945,7 @@ mod test {
         assert_eq!(format!("{:b}", u_6), "111111");
         assert_eq!(format!("{:b}", u_7), "1111111");
         assert_eq!(format!("{:b}", u_24), "111111111111111111111111");
+        assert_eq!(format!("{:#b}", u_1), "0b1");
         assert_eq!(format!("{:#b}", u_2), "0b11");
         assert_eq!(format!("{:#b}", u_3), "0b111");
         assert_eq!(format!("{:#b}", u_4), "0b1111");

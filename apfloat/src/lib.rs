@@ -85,6 +85,7 @@ mod status {
         ///
         /// UNDERFLOW or OVERFLOW are always returned or-ed with INEXACT.
         #[must_use]
+        #[derive(Copy, Clone, PartialEq, Eq, Debug)]
         pub struct Status: u8 {
             const OK = 0x00;
             const INVALID_OP = 0x01;
@@ -98,7 +99,7 @@ mod status {
 pub use status::Status;
 
 #[must_use]
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct StatusAnd<T> {
     pub status: Status,
     pub value: T,

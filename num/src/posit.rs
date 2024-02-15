@@ -27,7 +27,9 @@ macro_rules! construct_posit {
         $nar:expr,
         $guard:ident,
         $guard_zero:expr,
-        $guard_max:expr
+        $guard_max:expr,
+        $to:ident,
+        $into:ident
     ) => {
         #[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
         pub struct $name($internal);
@@ -37,10 +39,10 @@ macro_rules! construct_posit {
             pub const NAR: $name = $name($nar);
 
             #[inline]
-            pub fn as_inner(&self) -> &$internal { &self.0 }
+            pub const fn $to(&self) -> $internal { self.0 }
 
             #[inline]
-            pub fn into_inner(self) -> $internal { self.0 }
+            pub const fn $into(self) -> $internal { self.0 }
 
             #[inline]
             pub fn is_nar(&self) -> bool { self == &Self::NAR }
@@ -446,9 +448,48 @@ macro_rules! construct_posit {
     };
 }
 
-construct_posit!(Posit8, 8, 0, u8, 0, ::core::u8::MAX, 0x80, u16, 0, ::core::u16::MAX);
-construct_posit!(Posit16, 16, 1, u16, 0, ::core::u16::MAX, 0x8000, u32, 0, ::core::u32::MAX);
-construct_posit!(Posit32, 32, 2, u32, 0, ::core::u32::MAX, 0x8000_0000, u64, 0, ::core::u64::MAX);
+construct_posit!(
+    Posit8,
+    8,
+    0,
+    u8,
+    0,
+    ::core::u8::MAX,
+    0x80,
+    u16,
+    0,
+    ::core::u16::MAX,
+    to_u8,
+    into_u8
+);
+construct_posit!(
+    Posit16,
+    16,
+    1,
+    u16,
+    0,
+    ::core::u16::MAX,
+    0x8000,
+    u32,
+    0,
+    ::core::u32::MAX,
+    to_u16,
+    into_u16
+);
+construct_posit!(
+    Posit32,
+    32,
+    2,
+    u32,
+    0,
+    ::core::u32::MAX,
+    0x8000_0000,
+    u64,
+    0,
+    ::core::u64::MAX,
+    to_u32,
+    into_u32
+);
 construct_posit!(
     Posit64,
     64,
@@ -459,7 +500,9 @@ construct_posit!(
     0x8000_0000_0000_0000,
     u128,
     0,
-    ::core::u128::MAX
+    ::core::u128::MAX,
+    to_u64,
+    into_u64
 );
 construct_posit!(
     Posit128,
@@ -471,7 +514,9 @@ construct_posit!(
     0x8000_0000_0000_0000_0000_0000_0000_0000,
     u256,
     u256::ZERO,
-    u256::MAX
+    u256::MAX,
+    to_u128,
+    into_u128
 );
 construct_posit!(
     Posit256,
@@ -483,7 +528,9 @@ construct_posit!(
     u256::from_inner([0, 0, 0, 0x8000_0000_0000_0000]),
     u512,
     u512::ZERO,
-    u512::MAX
+    u512::MAX,
+    to_u256,
+    into_u256
 );
 construct_posit!(
     Posit512,
@@ -495,7 +542,9 @@ construct_posit!(
     u512::from_inner([0, 0, 0, 0, 0, 0, 0, 0x8000_0000_0000_0000]),
     u1024,
     u1024::ZERO,
-    u1024::MAX
+    u1024::MAX,
+    to_u512,
+    into_u512
 );
 
 #[cfg(test)]
@@ -504,21 +553,21 @@ mod tests {
 
     use super::*;
 
-    construct_posit!(Posit8Es1, 8, 1, u8, 0, 0xff, 0x80, u16, 0, 0xffff);
+    construct_posit!(Posit8Es1, 8, 1, u8, 0, 0xff, 0x80, u16, 0, 0xffff, to_u8, into_u8);
 
     #[test]
     fn posit_test() {
-        assert_eq!(Posit16::from(1.).into_inner(), 0b0100_0000_0000_0000);
-        assert_eq!(Posit16::from(1.125).into_inner(), 0b0100_0010_0000_0000);
-        assert_eq!(Posit16::from(3.25).into_inner(), 0b0101_1010_0000_0000);
-        assert_eq!(Posit16::from(4.).into_inner(), 0b0110_0000_0000_0000);
-        assert_eq!(Posit16::from(8.).into_inner(), 0b0110_1000_0000_0000);
-        assert_eq!(Posit16::from(1024.).into_inner(), 0b0111_1110_0000_0000);
-        assert_eq!(Posit16::from(-10.).into_inner(), 0b1001_0110_0000_0000);
-        assert_eq!(Posit16::from(-7. / 16.).into_inner(), 0b1101_0100_0000_0000);
-        assert_eq!(Posit16::from(-256.).into_inner(), 0b1000_0100_0000_0000);
-        assert_eq!(Posit16::from(0.).into_inner(), 0b0000_0000_0000_0000);
-        assert_eq!(Posit16::from(-0.).into_inner(), 0b0000_0000_0000_0000);
+        assert_eq!(Posit16::from(1.).into_u16(), 0b0100_0000_0000_0000);
+        assert_eq!(Posit16::from(1.125).into_u16(), 0b0100_0010_0000_0000);
+        assert_eq!(Posit16::from(3.25).into_u16(), 0b0101_1010_0000_0000);
+        assert_eq!(Posit16::from(4.).into_u16(), 0b0110_0000_0000_0000);
+        assert_eq!(Posit16::from(8.).into_u16(), 0b0110_1000_0000_0000);
+        assert_eq!(Posit16::from(1024.).into_u16(), 0b0111_1110_0000_0000);
+        assert_eq!(Posit16::from(-10.).into_u16(), 0b1001_0110_0000_0000);
+        assert_eq!(Posit16::from(-7. / 16.).into_u16(), 0b1101_0100_0000_0000);
+        assert_eq!(Posit16::from(-256.).into_u16(), 0b1000_0100_0000_0000);
+        assert_eq!(Posit16::from(0.).into_u16(), 0b0000_0000_0000_0000);
+        assert_eq!(Posit16::from(-0.).into_u16(), 0b0000_0000_0000_0000);
     }
 
     #[test]
@@ -526,32 +575,32 @@ mod tests {
         let sub = f32::from_bits(0b0000_0000_0000_1000 << 16); //2 ^ (-130)
         assert!(!sub.is_normal());
         // With es = 3, regime is -17 and exp is 6. -17 * 8 + 6 = 130
-        assert_eq!(Posit64::from(sub).into_inner(), 0b0000_0000_0000_0000_0011_1000 << 40);
+        assert_eq!(Posit64::from(sub).into_u64(), 0b0000_0000_0000_0000_0011_1000 << 40);
         assert_eq!(f32::from(Posit64::from(sub)), sub);
     }
 
     #[test]
     fn posit8es1_test() {
-        assert_eq!(Posit8Es1::from(1.).into_inner(), 0b0100_0000);
-        assert_eq!(Posit8Es1::from(1.125).into_inner(), 0b0100_0010);
-        assert_eq!(Posit8Es1::from(3.25).into_inner(), 0b0101_1010);
-        assert_eq!(Posit8Es1::from(4.).into_inner(), 0b0110_0000);
-        assert_eq!(Posit8Es1::from(8.).into_inner(), 0b0110_1000);
-        assert_eq!(Posit8Es1::from(1024.).into_inner(), 0b0111_1110);
-        assert_eq!(Posit8Es1::from(-10.).into_inner(), 0b1001_0110);
-        assert_eq!(Posit8Es1::from(-7. / 16.).into_inner(), 0b1101_0100);
-        assert_eq!(Posit8Es1::from(-256.).into_inner(), 0b1000_0100);
+        assert_eq!(Posit8Es1::from(1.).into_u8(), 0b0100_0000);
+        assert_eq!(Posit8Es1::from(1.125).into_u8(), 0b0100_0010);
+        assert_eq!(Posit8Es1::from(3.25).into_u8(), 0b0101_1010);
+        assert_eq!(Posit8Es1::from(4.).into_u8(), 0b0110_0000);
+        assert_eq!(Posit8Es1::from(8.).into_u8(), 0b0110_1000);
+        assert_eq!(Posit8Es1::from(1024.).into_u8(), 0b0111_1110);
+        assert_eq!(Posit8Es1::from(-10.).into_u8(), 0b1001_0110);
+        assert_eq!(Posit8Es1::from(-7. / 16.).into_u8(), 0b1101_0100);
+        assert_eq!(Posit8Es1::from(-256.).into_u8(), 0b1000_0100);
     }
 
     #[test]
     fn posit32_test() {
-        assert_eq!(Posit32::from(1.).into_inner(), 0b0100_0000 << 24);
+        assert_eq!(Posit32::from(1.).into_u32(), 0b0100_0000 << 24);
     }
 
     #[test]
     fn posit256_test() {
-        assert_eq!(Posit256::from(1.).into_inner(), u256::from(0b0100_0000u64) << 248);
-        assert_eq!(Posit256::from(1.125).into_inner(), u256::from(0b0100_0000_0010_0000u64) << 240);
+        assert_eq!(Posit256::from(1.).into_u256(), u256::from(0b0100_0000u64) << 248);
+        assert_eq!(Posit256::from(1.125).into_u256(), u256::from(0b0100_0000_0010_0000u64) << 240);
     }
 
     #[test]
@@ -583,8 +632,8 @@ mod tests {
 
     #[test]
     fn posit_neg_test() {
-        assert_eq!((-Posit256::from(1.)).into_inner(), Posit256::from(-1.).into_inner(),);
-        assert_eq!((-Posit256::from(0.)).into_inner(), Posit256::from(0.).into_inner(),);
+        assert_eq!((-Posit256::from(1.)).into_u256(), Posit256::from(-1.).into_u256(),);
+        assert_eq!((-Posit256::from(0.)).into_u256(), Posit256::from(0.).into_u256(),);
     }
 
     #[test]

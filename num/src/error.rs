@@ -3,8 +3,8 @@
 //
 // Written in 2014 by
 //     Andrew Poelstra <apoelstra@wpsoftware.net>
-// Updated in 2020-2021 by
-//     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
+// Updated in 2020-2024 by
+//     Dr. Maxim Orlovsky <orlovsky@ubideco.org>
 //
 // To the extent possible under law, the author(s) have dedicated all
 // copyright and related and neighboring rights to this software to
@@ -17,11 +17,11 @@
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 /// Error indicating that a value does not fit integer dimension
-pub struct OverflowError {
+pub struct OverflowError<T = usize> {
     /// Integer bit size
-    pub max: usize,
+    pub max: T,
     /// Value that overflows
-    pub value: usize,
+    pub value: T,
 }
 
 impl core::fmt::Display for OverflowError {
