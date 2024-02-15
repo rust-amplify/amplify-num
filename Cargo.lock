@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "amplify_num"
-version = "0.6.0"
+version = "0.5.2"
 dependencies = [
  "getrandom",
  "rand",

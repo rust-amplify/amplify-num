@@ -21,7 +21,7 @@ alloc = ["amplify_num/alloc"]
 std = ["amplify_num/std"]
 
 [dependencies]
-amplify_num = { version = "0.6.0", path = "../num", default-features = false }
+amplify_num = { version = "0.5.2", path = "../num", default-features = false }
 bitflags = "2.4.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
