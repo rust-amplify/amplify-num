@@ -40,9 +40,11 @@ pub mod error;
 pub mod hex;
 pub mod posit;
 mod smallint;
+mod traits;
 
 pub use bigint::{i1024, i256, i512, u1024, u256, u512};
 pub use smallint::{u1, u2, u24, u3, u4, u40, u48, u5, u56, u6, u7};
+pub use traits::{BigInteger, Integer, Number, SInteger, SmallInteger, UInteger};
 
 // TODO: Create arbitrary precision types
 // TODO: Move from using `u64` to `u128` for big int types
