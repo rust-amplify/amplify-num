@@ -39,6 +39,8 @@ macro_rules! construct_posit {
             pub const NAR: $name = $name($nar);
 
             #[inline]
+            #[allow(clippy::wrong_self_convention)]
+            #[deprecated(since = "1.5.3", note="use `into`")]
             pub const fn $to(&self) -> $internal { self.0 }
 
             #[inline]
