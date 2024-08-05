@@ -40,7 +40,7 @@ macro_rules! construct_posit {
 
             #[inline]
             #[allow(clippy::wrong_self_convention)]
-            #[deprecated(since = "1.5.3", note="use `into`")]
+            #[deprecated(since = "1.5.3", note = "use `into`")]
             pub const fn $to(&self) -> $internal { self.0 }
 
             #[inline]
@@ -450,48 +450,9 @@ macro_rules! construct_posit {
     };
 }
 
-construct_posit!(
-    Posit8,
-    8,
-    0,
-    u8,
-    0,
-    u8::MAX,
-    0x80,
-    u16,
-    0,
-    u16::MAX,
-    to_u8,
-    into_u8
-);
-construct_posit!(
-    Posit16,
-    16,
-    1,
-    u16,
-    0,
-    u16::MAX,
-    0x8000,
-    u32,
-    0,
-    u32::MAX,
-    to_u16,
-    into_u16
-);
-construct_posit!(
-    Posit32,
-    32,
-    2,
-    u32,
-    0,
-    u32::MAX,
-    0x8000_0000,
-    u64,
-    0,
-    u64::MAX,
-    to_u32,
-    into_u32
-);
+construct_posit!(Posit8, 8, 0, u8, 0, u8::MAX, 0x80, u16, 0, u16::MAX, to_u8, into_u8);
+construct_posit!(Posit16, 16, 1, u16, 0, u16::MAX, 0x8000, u32, 0, u32::MAX, to_u16, into_u16);
+construct_posit!(Posit32, 32, 2, u32, 0, u32::MAX, 0x8000_0000, u64, 0, u64::MAX, to_u32, into_u32);
 construct_posit!(
     Posit64,
     64,

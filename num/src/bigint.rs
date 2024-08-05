@@ -1229,11 +1229,7 @@ macro_rules! construct_signed_bigint_methods {
         impl From<i8> for $name {
             fn from(init: i8) -> $name {
                 let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() {
-                    u8::MAX
-                } else {
-                    0
-                }; $n_words * 8];
+                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
                 for i in 0..bytes.len() {
                     ret[i] = bytes[i]
                 }
@@ -1244,11 +1240,7 @@ macro_rules! construct_signed_bigint_methods {
         impl From<i16> for $name {
             fn from(init: i16) -> $name {
                 let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() {
-                    u8::MAX
-                } else {
-                    0
-                }; $n_words * 8];
+                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
                 for i in 0..bytes.len() {
                     ret[i] = bytes[i]
                 }
@@ -1259,11 +1251,7 @@ macro_rules! construct_signed_bigint_methods {
         impl From<i32> for $name {
             fn from(init: i32) -> $name {
                 let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() {
-                    u8::MAX
-                } else {
-                    0
-                }; $n_words * 8];
+                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
                 for i in 0..bytes.len() {
                     ret[i] = bytes[i]
                 }
@@ -1274,11 +1262,7 @@ macro_rules! construct_signed_bigint_methods {
         impl From<i64> for $name {
             fn from(init: i64) -> $name {
                 let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() {
-                    u8::MAX
-                } else {
-                    0
-                }; $n_words * 8];
+                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
                 for i in 0..bytes.len() {
                     ret[i] = bytes[i]
                 }
@@ -1289,11 +1273,7 @@ macro_rules! construct_signed_bigint_methods {
         impl From<i128> for $name {
             fn from(init: i128) -> $name {
                 let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() {
-                    u8::MAX
-                } else {
-                    0
-                }; $n_words * 8];
+                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
                 for i in 0..bytes.len() {
                     ret[i] = bytes[i]
                 }
@@ -1703,10 +1683,8 @@ mod tests {
         let zero = u256::ZERO;
         let number_one = u256::from(0xDEADBEEFu64);
         let number_two = u256::from(u64::MAX);
-        let one_div_rem_two = (
-            u256::from(u64::MAX / 0xDEADBEEFu64),
-            u256::from(u64::MAX % 0xDEADBEEFu64),
-        );
+        let one_div_rem_two =
+            (u256::from(u64::MAX / 0xDEADBEEFu64), u256::from(u64::MAX % 0xDEADBEEFu64));
         let max = u256::MAX;
 
         // Division by zero gets not panic and gets None
