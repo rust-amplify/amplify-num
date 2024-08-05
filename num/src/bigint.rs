@@ -86,7 +86,7 @@ macro_rules! construct_bigint {
             #[inline]
             pub const fn low_u32(&self) -> u32 {
                 let &$name(ref arr) = self;
-                (arr[0] & ::core::u32::MAX as u64) as u32
+                (arr[0] & u32::MAX as u64) as u32
             }
 
             /// Returns lower 64 bits of the number as `u32`
@@ -445,7 +445,7 @@ macro_rules! construct_bigint {
             type Output = Self;
             fn neg(self) -> Self::Output {
                 assert!(
-                    $name::MIN != $name([::core::u64::MAX; $n_words]),
+                    $name::MIN != $name([u64::MAX; $n_words]),
                     "attempt to negate unsigned number"
                 );
                 assert!(
@@ -1230,7 +1230,7 @@ macro_rules! construct_signed_bigint_methods {
             fn from(init: i8) -> $name {
                 let bytes = init.to_le_bytes();
                 let mut ret = [if init.is_negative() {
-                    ::core::u8::MAX
+                    u8::MAX
                 } else {
                     0
                 }; $n_words * 8];
@@ -1245,7 +1245,7 @@ macro_rules! construct_signed_bigint_methods {
             fn from(init: i16) -> $name {
                 let bytes = init.to_le_bytes();
                 let mut ret = [if init.is_negative() {
-                    ::core::u8::MAX
+                    u8::MAX
                 } else {
                     0
                 }; $n_words * 8];
@@ -1260,7 +1260,7 @@ macro_rules! construct_signed_bigint_methods {
             fn from(init: i32) -> $name {
                 let bytes = init.to_le_bytes();
                 let mut ret = [if init.is_negative() {
-                    ::core::u8::MAX
+                    u8::MAX
                 } else {
                     0
                 }; $n_words * 8];
@@ -1275,7 +1275,7 @@ macro_rules! construct_signed_bigint_methods {
             fn from(init: i64) -> $name {
                 let bytes = init.to_le_bytes();
                 let mut ret = [if init.is_negative() {
-                    ::core::u8::MAX
+                    u8::MAX
                 } else {
                     0
                 }; $n_words * 8];
@@ -1290,7 +1290,7 @@ macro_rules! construct_signed_bigint_methods {
             fn from(init: i128) -> $name {
                 let bytes = init.to_le_bytes();
                 let mut ret = [if init.is_negative() {
-                    ::core::u8::MAX
+                    u8::MAX
                 } else {
                     0
                 }; $n_words * 8];
@@ -1313,8 +1313,8 @@ macro_rules! construct_signed_bigint_methods {
 
             /// Maximum value
             pub const MAX: $name = {
-                let mut max = [::core::u64::MAX; $n_words];
-                max[$n_words - 1] = ::core::u64::MAX >> 1;
+                let mut max = [u64::MAX; $n_words];
+                max[$n_words - 1] = u64::MAX >> 1;
                 $name(max)
             };
 
@@ -1329,11 +1329,11 @@ macro_rules! construct_signed_bigint_methods {
                 let &$name(ref arr) = self;
                 let iter = arr.iter().rev().take($n_words - 1);
                 if self.is_negative() {
-                    let ctr = iter.take_while(|&&b| b == ::core::u64::MAX).count();
+                    let ctr = iter.take_while(|&&b| b == u64::MAX).count();
                     (0x40 * ($n_words - ctr)) + 1 -
                         (!arr[$n_words - ctr - 1]).leading_zeros() as usize
                 } else {
-                    let ctr = iter.take_while(|&&b| b == ::core::u64::MIN).count();
+                    let ctr = iter.take_while(|&&b| b == u64::MIN).count();
                     (0x40 * ($n_words - ctr)) + 1 - arr[$n_words - ctr - 1].leading_zeros() as usize
                 }
             }
@@ -1365,7 +1365,7 @@ macro_rules! construct_signed_bigint_methods {
                     p_high >>= 1;
                 }
                 let negative_overflow =
-                    p_low.is_negative() && p_high != $name([::core::u64::MAX; $n_words]);
+                    p_low.is_negative() && p_high != $name([u64::MAX; $n_words]);
                 let positive_overflow = !p_low.is_negative() && p_high != $name::ZERO;
                 (p_low, negative_overflow || positive_overflow)
             }
@@ -1382,7 +1382,7 @@ macro_rules! construct_unsigned_bigint_methods {
             pub const MIN: $name = $name([0u64; $n_words]);
 
             /// Maximum value
-            pub const MAX: $name = $name([::core::u64::MAX; $n_words]);
+            pub const MAX: $name = $name([u64::MAX; $n_words]);
 
             #[inline]
             pub const fn is_negative(&self) -> bool { false }
@@ -1392,7 +1392,7 @@ macro_rules! construct_unsigned_bigint_methods {
             pub fn bits_required(&self) -> usize {
                 let &$name(ref arr) = self;
                 let iter = arr.iter().rev().take($n_words - 1);
-                let ctr = iter.take_while(|&&b| b == ::core::u64::MIN).count();
+                let ctr = iter.take_while(|&&b| b == u64::MIN).count();
                 (0x40 * ($n_words - ctr)) - arr[$n_words - ctr - 1].leading_zeros() as usize
             }
 
@@ -1419,7 +1419,7 @@ macro_rules! construct_unsigned_bigint_methods {
                         let prev_carry = carry;
                         let res = me[i] as u128 * you[j] as u128;
                         carry = (res >> 64) as u64;
-                        let mul = (res & ::core::u64::MAX as u128) as u64;
+                        let mul = (res & u64::MAX as u128) as u64;
                         let (res, flag) = ret[i + j].overflowing_add(mul);
                         carry += flag as u64;
                         ret[i + j] = res;
@@ -1510,7 +1510,7 @@ mod tests {
             "0x00000000000000000000000000000000000000000000000000000000deadbeef"
         );
         assert_eq!(
-            format!("{}", u256::from(::core::u64::MAX)),
+            format!("{}", u256::from(u64::MAX)),
             "0x000000000000000000000000000000000000000000000000ffffffffffffffff"
         );
 
@@ -1702,10 +1702,10 @@ mod tests {
     fn u256_div_rem_0() {
         let zero = u256::ZERO;
         let number_one = u256::from(0xDEADBEEFu64);
-        let number_two = u256::from(::core::u64::MAX);
+        let number_two = u256::from(u64::MAX);
         let one_div_rem_two = (
-            u256::from(::core::u64::MAX / 0xDEADBEEFu64),
-            u256::from(::core::u64::MAX % 0xDEADBEEFu64),
+            u256::from(u64::MAX / 0xDEADBEEFu64),
+            u256::from(u64::MAX % 0xDEADBEEFu64),
         );
         let max = u256::MAX;
 
@@ -1731,7 +1731,7 @@ mod tests {
     fn u256_div_rem_1() {
         let zero = u256::ZERO;
         let number_one = u256::from(0xDEADBEEFu64);
-        let number_two = u256::from(::core::u64::MAX);
+        let number_two = u256::from(u64::MAX);
         let max = u256::MAX;
 
         assert!(u256::div_rem(max, zero).is_err());
@@ -1749,9 +1749,9 @@ mod tests {
         assert_eq!(u256::MIN.as_inner(), &[0u64; 4]);
         assert_eq!(u512::MIN.as_inner(), &[0u64; 8]);
         assert_eq!(u1024::MIN.as_inner(), &[0u64; 16]);
-        assert_eq!(u256::MAX.as_inner(), &[::core::u64::MAX; 4]);
-        assert_eq!(u512::MAX.as_inner(), &[::core::u64::MAX; 8]);
-        assert_eq!(u1024::MAX.as_inner(), &[::core::u64::MAX; 16]);
+        assert_eq!(u256::MAX.as_inner(), &[u64::MAX; 4]);
+        assert_eq!(u512::MAX.as_inner(), &[u64::MAX; 8]);
+        assert_eq!(u1024::MAX.as_inner(), &[u64::MAX; 16]);
         assert_eq!(u256::BITS, 4 * 64);
         assert_eq!(u512::BITS, 8 * 64);
         assert_eq!(u1024::BITS, 16 * 64);
@@ -1879,7 +1879,7 @@ mod tests {
             "000000000000dd44000000000000cc33000000000000bb22000000000000aa11",
         );
         check(
-            u256([u64::max_value(), u64::max_value(), u64::max_value(), u64::max_value()]),
+            u256([u64::MAX, u64::MAX, u64::MAX, u64::MAX]),
             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         );
         check(
