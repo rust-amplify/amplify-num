@@ -39,6 +39,8 @@ macro_rules! construct_posit {
             pub const NAR: $name = $name($nar);
 
             #[inline]
+            #[allow(clippy::wrong_self_convention)]
+            #[deprecated(since = "1.5.3", note = "use `into`")]
             pub const fn $to(&self) -> $internal { self.0 }
 
             #[inline]
@@ -110,7 +112,7 @@ macro_rules! construct_posit {
                 let shl = |x: $guard, shift| x.checked_shl(shift).unwrap_or($guard_zero);
                 let shr = |x: $guard, shift| x.checked_shr(shift).unwrap_or($guard_zero);
                 let mut res = $guard_zero;
-                let len: u32 = (regime.abs() as u16 + (!regime.is_negative() as u16)).into();
+                let len: u32 = (regime.unsigned_abs() + (!regime.is_negative() as u16)).into();
                 let regime_mask = match regime.is_negative() {
                     true => shr(!($guard_max >> 1), len + 1),
                     false => ($guard_max ^ shr($guard_max, len)) >> 1,
@@ -335,14 +337,14 @@ macro_rules! construct_posit {
                 let (sign, regime, exp, mantissa): (bool, i16, $internal, $internal) =
                     match init.decode() {
                         Err(PositDecodeError::Zero) => return 0.,
-                        Err(PositDecodeError::NaR) => return ::core::f32::NAN,
+                        Err(PositDecodeError::NaR) => return f32::NAN,
                         Ok(v) => v,
                     };
                 let sign = if sign { 0x80000000u32 } else { 0u32 };
                 let exp = $name::exp(regime, exp);
                 let (exp, mantissa) = match (exp > 127, exp < -149, exp < -126) {
-                    (true, _, _) => return ::core::f32::MAX,
-                    (_, true, _) => return ::core::f32::MIN,
+                    (true, _, _) => return f32::MAX,
+                    (_, true, _) => return f32::MIN,
                     (_, _, true) => (0u32, ((mantissa >> 1) | $nar) >> (-127 - exp) as usize),
                     _ => (((exp + 127) as u32) << 23, mantissa),
                 };
@@ -393,14 +395,14 @@ macro_rules! construct_posit {
                 let (sign, regime, exp, mantissa): (bool, i16, $internal, $internal) =
                     match init.decode() {
                         Err(PositDecodeError::Zero) => return 0.,
-                        Err(PositDecodeError::NaR) => return ::core::f64::NAN,
+                        Err(PositDecodeError::NaR) => return f64::NAN,
                         Ok(v) => v,
                     };
                 let sign = if sign { 0x80000000_00000000u64 } else { 0u64 };
                 let exp = $name::exp(regime, exp);
                 let (exp, mantissa) = match (exp > 1023, exp < -1074, exp < -1022) {
-                    (true, _, _) => return ::core::f64::MAX,
-                    (_, true, _) => return ::core::f64::MIN,
+                    (true, _, _) => return f64::MAX,
+                    (_, true, _) => return f64::MIN,
                     (_, _, true) => (0u64, ((mantissa >> 1) | $nar) >> (-1023 - exp) as usize),
                     _ => (((exp + 1023) as u64) << 52, mantissa),
                 };
@@ -448,59 +450,20 @@ macro_rules! construct_posit {
     };
 }
 
-construct_posit!(
-    Posit8,
-    8,
-    0,
-    u8,
-    0,
-    ::core::u8::MAX,
-    0x80,
-    u16,
-    0,
-    ::core::u16::MAX,
-    to_u8,
-    into_u8
-);
-construct_posit!(
-    Posit16,
-    16,
-    1,
-    u16,
-    0,
-    ::core::u16::MAX,
-    0x8000,
-    u32,
-    0,
-    ::core::u32::MAX,
-    to_u16,
-    into_u16
-);
-construct_posit!(
-    Posit32,
-    32,
-    2,
-    u32,
-    0,
-    ::core::u32::MAX,
-    0x8000_0000,
-    u64,
-    0,
-    ::core::u64::MAX,
-    to_u32,
-    into_u32
-);
+construct_posit!(Posit8, 8, 0, u8, 0, u8::MAX, 0x80, u16, 0, u16::MAX, to_u8, into_u8);
+construct_posit!(Posit16, 16, 1, u16, 0, u16::MAX, 0x8000, u32, 0, u32::MAX, to_u16, into_u16);
+construct_posit!(Posit32, 32, 2, u32, 0, u32::MAX, 0x8000_0000, u64, 0, u64::MAX, to_u32, into_u32);
 construct_posit!(
     Posit64,
     64,
     3,
     u64,
     0,
-    ::core::u64::MAX,
+    u64::MAX,
     0x8000_0000_0000_0000,
     u128,
     0,
-    ::core::u128::MAX,
+    u128::MAX,
     to_u64,
     into_u64
 );
@@ -510,7 +473,7 @@ construct_posit!(
     4,
     u128,
     0,
-    ::core::u128::MAX,
+    u128::MAX,
     0x8000_0000_0000_0000_0000_0000_0000_0000,
     u256,
     u256::ZERO,
@@ -625,9 +588,9 @@ mod tests {
 
     #[test]
     fn posit256_nar_test() {
-        assert_eq!(Posit256::from(::core::f32::INFINITY), Posit256::NAR);
-        assert_eq!(Posit256::from(::core::f32::NEG_INFINITY), Posit256::NAR);
-        assert_eq!(Posit256::from(::core::f32::NAN), Posit256::NAR);
+        assert_eq!(Posit256::from(f32::INFINITY), Posit256::NAR);
+        assert_eq!(Posit256::from(f32::NEG_INFINITY), Posit256::NAR);
+        assert_eq!(Posit256::from(f32::NAN), Posit256::NAR);
     }
 
     #[test]
@@ -638,18 +601,18 @@ mod tests {
 
     #[test]
     fn posit_is_nar_test() {
-        assert!(Posit256::from(::core::f32::INFINITY).is_nar());
-        assert!(Posit256::from(::core::f32::NEG_INFINITY).is_nar());
-        assert!(Posit256::from(::core::f32::NAN).is_nar());
+        assert!(Posit256::from(f32::INFINITY).is_nar());
+        assert!(Posit256::from(f32::NEG_INFINITY).is_nar());
+        assert!(Posit256::from(f32::NAN).is_nar());
         assert!(!(Posit256::ZERO.is_nar()));
         assert!(!(Posit256::from(1.).is_nar()));
     }
 
     #[test]
     fn posit_is_negative_test() {
-        assert!(!(Posit256::from(::core::f32::INFINITY).is_negative()));
-        assert!(!(Posit256::from(::core::f32::NEG_INFINITY).is_negative()));
-        assert!(!(Posit256::from(::core::f32::NAN).is_negative()));
+        assert!(!(Posit256::from(f32::INFINITY).is_negative()));
+        assert!(!(Posit256::from(f32::NEG_INFINITY).is_negative()));
+        assert!(!(Posit256::from(f32::NAN).is_negative()));
         assert!(!(Posit256::from(0.)).is_negative());
         assert!(!(Posit256::from(3.)).is_negative());
         assert!(Posit256::from(-2.).is_negative());
@@ -657,9 +620,9 @@ mod tests {
 
     #[test]
     fn posit_is_positive_test() {
-        assert!(!(Posit256::from(::core::f32::INFINITY).is_positive()));
-        assert!(!(Posit256::from(::core::f32::NEG_INFINITY).is_positive()));
-        assert!(!(Posit256::from(::core::f32::NAN).is_positive()));
+        assert!(!(Posit256::from(f32::INFINITY).is_positive()));
+        assert!(!(Posit256::from(f32::NEG_INFINITY).is_positive()));
+        assert!(!(Posit256::from(f32::NAN).is_positive()));
         assert!(!(Posit256::from(0.)).is_positive());
         assert!(Posit256::from(3.).is_positive());
         assert!(!(Posit256::from(-2.).is_positive()));
@@ -667,9 +630,9 @@ mod tests {
 
     #[test]
     fn posit_is_zero_test() {
-        assert!(!(Posit256::from(::core::f32::INFINITY).is_zero()));
-        assert!(!(Posit256::from(::core::f32::NEG_INFINITY).is_zero()));
-        assert!(!(Posit256::from(::core::f32::NAN).is_zero()));
+        assert!(!(Posit256::from(f32::INFINITY).is_zero()));
+        assert!(!(Posit256::from(f32::NEG_INFINITY).is_zero()));
+        assert!(!(Posit256::from(f32::NAN).is_zero()));
         assert!(Posit256::from(0.).is_zero());
         assert!(!(Posit256::from(3.).is_zero()));
         assert!(!(Posit256::from(-2.).is_zero()));

@@ -73,7 +73,7 @@ macro_rules! construct_smallint {
             #[inline]
             fn try_from(value: $inner) -> Result<Self, Self::Error> {
                 if value > $max {
-                    Err(OverflowError { max: $max, value: value })
+                    Err(OverflowError { max: $max, value })
                 } else {
                     Ok(Self(value))
                 }

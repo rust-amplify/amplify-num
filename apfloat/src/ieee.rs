@@ -1824,12 +1824,12 @@ impl<S: Semantics> IeeeFloat<S> {
         // significant digits and adjust for writing the significand starting
         // at the most significant nibble.
         let exp_adjustment = if dot > first_sig_digit {
-            if dot - first_sig_digit > i16::max_value() as _ {
+            if dot - first_sig_digit > i16::MAX as _ {
                 panic!("Failed to convert to ExpInt")
             } else {
                 (dot - first_sig_digit) as ExpInt
             }
-        } else if first_sig_digit - dot - 1 > i16::max_value() as _ {
+        } else if first_sig_digit - dot - 1 > i16::MAX as _ {
             panic!("Failed to convert to ExpInt")
         } else {
             -((first_sig_digit - dot - 1) as ExpInt)
