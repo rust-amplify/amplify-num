@@ -16,6 +16,6 @@ small-bit numbers (`u1` to `u7`), custom bit-sized numbers (like `u24`, `u48`,
 
 This is a part of Rust language amplification library [`amplify`].
 
-Minimum supported rust compiler version (MSRV): 1.60.0. Rust edition 2021.
+Minimum supported rust compiler version (MSRV): 1.61.0. Rust edition 2021.
 
 [`amplify`]: https://crates.io/crate/amplify
