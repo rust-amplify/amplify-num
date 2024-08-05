@@ -22,8 +22,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         # NB: we have to use either std or alloc here
-      - run: cargo check --no-default-features --feature std
-      - run: cargo check --no-default-features --feature alloc
+      - run: cargo check --no-default-features --features std
+      - run: cargo check --no-default-features --features alloc
   features:
     runs-on: ubuntu-latest
     strategy:
