@@ -298,7 +298,7 @@ construct_smallint!(
     into_u8,
     1,
     1,
-    doc = "1-bit unsigned integer in the range `0..1`. It can be used instead of `bool` when \
+    doc = "1-bit unsigned integer in the range `0..2`. It can be used instead of `bool` when \
            1-bit numeric (and not boolean) arithmetic is required"
 );
 construct_smallint!(
