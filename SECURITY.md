@@ -15,20 +15,7 @@ Instead, please report them to the repository maintainers by sending a **GPG
 encrypted e-mail** to _all maintainers of a specific repo_ using their GPG keys.
 
 A list of repository maintainers and their keys and e-mail addresses are 
-provided inside MAINTANERS.md file and MANIFEST.yml, with the latter also 
-included in the README.md as a manifest block, which looks in the following way:
-
-```yaml
-Name: <name>
-...
-Maintained: <organization name>
-Maintainers:
-  <name and surname of maintainer 1>:
-    GPG: <encryption key fingerprint>
-    EMail: <e-mail address>
-  <name and surname of other maintainers>:
-    ...
-```
+provided inside MAINTAINERS.md file.
 
 You should receive a response within 72 hours. If for some reason you do not, 
 please follow up via email to ensure we received your original message. 

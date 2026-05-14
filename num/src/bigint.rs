@@ -1,19 +1,26 @@
-// Rust language amplification library providing multiple generic trait
-// implementations, type wrappers, derive macros and other language enhancements
+// SPDX-License-Identifier: Apache-2.0
 //
 // Written in 2014 by
 //     Andrew Poelstra <apoelstra@wpsoftware.net>
-// Refactored & fixed in 2021-2024 by
+// Refactored, fixed & improved in 2021-2026 by
 //     Dr. Maxim Orlovsky <orlovsky@ubideco.org>
 //
-// To the extent possible under law, the author(s) have dedicated all
-// copyright and related and neighboring rights to this software to
-// the public domain worldwide. This software is distributed without
-// any warranty.
+// Copyright 2024-2026 Laboratories for Ubiquitous and Deterministic Computing,
+// Institute for Distributed and Cognitive Computing (InDCS), Switzerland.
+// All rights reserved.
 //
-// You should have received a copy of the MIT License
-// along with this software.
-// If not, see <https://opensource.org/licenses/MIT>.
+// Copyright (C) 2021-2026 Dr Maxim Orlovsky.
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not
+// use this file except in compliance with the License. You may obtain a copy of
+// the License at <http://www.apache.org/licenses/LICENSE-2.0>
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations under
+// the License.
 
 use crate::error::{DivError, ParseLengthError};
 
