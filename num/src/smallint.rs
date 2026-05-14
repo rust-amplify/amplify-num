@@ -298,7 +298,7 @@ construct_smallint!(
     into_u8,
     1,
     1,
-    doc = "1-bit unsigned integer in the range `0..1`. It can be used instead of `bool` when \
+    doc = "1-bit unsigned integer in the range `0..=1`. It can be used instead of `bool` when \
            1-bit numeric (and not boolean) arithmetic is required"
 );
 construct_smallint!(
@@ -308,7 +308,7 @@ construct_smallint!(
     into_u8,
     2,
     3,
-    doc = "2-bit unsigned integer in the range `0..4`"
+    doc = "2-bit unsigned integer in the range `0..=3`"
 );
 construct_smallint!(
     u3,
@@ -317,7 +317,7 @@ construct_smallint!(
     into_u8,
     3,
     7,
-    doc = "3-bit unsigned integer in the range `0..8`"
+    doc = "3-bit unsigned integer in the range `0..=7`"
 );
 construct_smallint!(
     u4,
@@ -326,7 +326,7 @@ construct_smallint!(
     into_u8,
     4,
     15,
-    doc = "4-bit unsigned integer in the range `0..16`"
+    doc = "4-bit unsigned integer in the range `0..=15`"
 );
 construct_smallint!(
     u5,
@@ -335,7 +335,7 @@ construct_smallint!(
     into_u8,
     5,
     31,
-    doc = "5-bit unsigned integer in the range `0..32`"
+    doc = "5-bit unsigned integer in the range `0..=31`"
 );
 construct_smallint!(
     u6,
@@ -344,7 +344,7 @@ construct_smallint!(
     into_u8,
     6,
     63,
-    doc = "6-bit unsigned integer in the range `0..64`"
+    doc = "6-bit unsigned integer in the range `0..=63`"
 );
 construct_smallint!(
     u7,
@@ -353,7 +353,7 @@ construct_smallint!(
     into_u8,
     7,
     127,
-    doc = "7-bit unsigned integer in the range `0..128`"
+    doc = "7-bit unsigned integer in the range `0..=127`"
 );
 construct_smallint!(
     u10,
@@ -362,7 +362,7 @@ construct_smallint!(
     into_u16,
     10,
     0x3_FF,
-    doc = "10-bit unsigned integer in the range `0..1024`"
+    doc = "10-bit unsigned integer in the range `0..=1023`"
 );
 construct_smallint!(
     u12,
@@ -371,7 +371,7 @@ construct_smallint!(
     into_u16,
     12,
     0xF_FF,
-    doc = "12-bit unsigned integer in the range `0..4096`"
+    doc = "12-bit unsigned integer in the range `0..=4095`"
 );
 construct_smallint!(
     u14,
@@ -380,7 +380,7 @@ construct_smallint!(
     into_u16,
     14,
     0x3F_FF,
-    doc = "14-bit unsigned integer in the range `0..16384`"
+    doc = "14-bit unsigned integer in the range `0..=16383`"
 );
 construct_smallint!(
     u20,
@@ -389,7 +389,7 @@ construct_smallint!(
     into_u32,
     20,
     0xF_FF_FF,
-    doc = "20-bit unsigned integer in the range `0..1_048_576`"
+    doc = "20-bit unsigned integer in the range `0..=1_048_575`"
 );
 construct_smallint!(
     u24,
@@ -398,7 +398,7 @@ construct_smallint!(
     into_u32,
     24,
     0xFF_FF_FF,
-    doc = "24-bit unsigned integer in the range `0..16_777_216`"
+    doc = "24-bit unsigned integer in the range `0..=16_777_215`"
 );
 construct_smallint!(
     u40,
