@@ -297,6 +297,82 @@ macro_rules! impl_op {
     };
 }
 
+macro_rules! impl_from_into {
+    ($ty:ty) => {
+        impl From<$ty> for i32 {
+            fn from(val: $ty) -> Self { val.0 as i32 }
+        }
+
+        impl From<$ty> for i64 {
+            fn from(val: $ty) -> Self { val.0 as i64 }
+        }
+
+        impl From<$ty> for i128 {
+            fn from(val: $ty) -> Self { val.0 as i128 }
+        }
+
+        impl From<$ty> for isize {
+            fn from(val: $ty) -> Self { val.0 as isize }
+        }
+
+        impl From<$ty> for u64 {
+            fn from(val: $ty) -> Self { val.0 as u64 }
+        }
+
+        impl From<$ty> for u128 {
+            fn from(val: $ty) -> Self { val.0 as u128 }
+        }
+
+        impl From<$ty> for usize {
+            fn from(val: $ty) -> Self { val.0 as usize }
+        }
+
+        impl $ty {
+            /// Converts into `i32` type.
+            pub const fn to_i32(&self) -> i32 { self.0 as i32 }
+
+            /// Converts into `i64` type.
+            pub const fn to_i64(&self) -> i64 { self.0 as i64 }
+
+            /// Converts into `i128` type.
+            pub const fn to_i128(&self) -> i128 { self.0 as i128 }
+
+            /// Converts into `isize` type.
+            pub const fn to_isize(&self) -> isize { self.0 as isize }
+
+            /// Converts into `u64` type.
+            pub const fn to_u64(&self) -> u64 { self.0 as u64 }
+
+            /// Converts into `i128` type.
+            pub const fn to_u128(&self) -> u128 { self.0 as u128 }
+
+            /// Converts into `usize` type.
+            pub const fn to_usize(&self) -> usize { self.0 as usize }
+
+            /// Converts into `i32` type.
+            pub const fn into_i32(self) -> i32 { self.0 as i32 }
+
+            /// Converts into `i64` type.
+            pub const fn into_i64(self) -> i64 { self.0 as i64 }
+
+            /// Converts into `i128` type.
+            pub const fn into_i128(self) -> i128 { self.0 as i128 }
+
+            /// Converts into `isize` type.
+            pub const fn into_isize(self) -> isize { self.0 as isize }
+
+            /// Converts into `u64` type.
+            pub const fn into_u64(self) -> u64 { self.0 as u64 }
+
+            /// Converts into `u128` type.
+            pub const fn into_u128(self) -> u128 { self.0 as u128 }
+
+            /// Converts into `usize` type.
+            pub const fn into_usize(self) -> usize { self.0 as usize }
+        }
+    };
+}
+
 construct_smallint!(
     u1,
     u8,
@@ -434,6 +510,12 @@ construct_smallint!(
     doc = "56-bit unsigned integer in the range `0..2^56`"
 );
 
+impl_from_into!(u10);
+impl_from_into!(u12);
+impl_from_into!(u14);
+impl_from_into!(u20);
+impl_from_into!(u24);
+
 impl From<u1> for u2 {
     fn from(value: u1) -> Self { Self(value.0) }
 }
@@ -516,146 +598,6 @@ impl From<u5> for u7 {
 
 impl From<u6> for u7 {
     fn from(value: u6) -> Self { Self(value.0) }
-}
-
-impl From<u10> for i32 {
-    fn from(val: u10) -> Self { val.0 as i32 }
-}
-
-impl From<u10> for i64 {
-    fn from(val: u10) -> Self { val.0 as i64 }
-}
-
-impl From<u10> for i128 {
-    fn from(val: u10) -> Self { val.0 as i128 }
-}
-
-impl From<u10> for isize {
-    fn from(val: u10) -> Self { val.0 as isize }
-}
-
-impl From<u10> for u64 {
-    fn from(val: u10) -> Self { val.0 as u64 }
-}
-
-impl From<u10> for u128 {
-    fn from(val: u10) -> Self { val.0 as u128 }
-}
-
-impl From<u10> for usize {
-    fn from(val: u10) -> Self { val.0 as usize }
-}
-
-impl From<u12> for i32 {
-    fn from(val: u12) -> Self { val.0 as i32 }
-}
-
-impl From<u12> for i64 {
-    fn from(val: u12) -> Self { val.0 as i64 }
-}
-
-impl From<u12> for i128 {
-    fn from(val: u12) -> Self { val.0 as i128 }
-}
-
-impl From<u12> for isize {
-    fn from(val: u12) -> Self { val.0 as isize }
-}
-
-impl From<u12> for u64 {
-    fn from(val: u12) -> Self { val.0 as u64 }
-}
-
-impl From<u12> for u128 {
-    fn from(val: u12) -> Self { val.0 as u128 }
-}
-
-impl From<u12> for usize {
-    fn from(val: u12) -> Self { val.0 as usize }
-}
-
-impl From<u14> for i32 {
-    fn from(val: u14) -> Self { val.0 as i32 }
-}
-
-impl From<u14> for i64 {
-    fn from(val: u14) -> Self { val.0 as i64 }
-}
-
-impl From<u14> for i128 {
-    fn from(val: u14) -> Self { val.0 as i128 }
-}
-
-impl From<u14> for isize {
-    fn from(val: u14) -> Self { val.0 as isize }
-}
-
-impl From<u14> for u64 {
-    fn from(val: u14) -> Self { val.0 as u64 }
-}
-
-impl From<u14> for u128 {
-    fn from(val: u14) -> Self { val.0 as u128 }
-}
-
-impl From<u14> for usize {
-    fn from(val: u14) -> Self { val.0 as usize }
-}
-
-impl From<u20> for i32 {
-    fn from(val: u20) -> Self { val.0 as i32 }
-}
-
-impl From<u20> for i64 {
-    fn from(val: u20) -> Self { val.0 as i64 }
-}
-
-impl From<u20> for i128 {
-    fn from(val: u20) -> Self { val.0 as i128 }
-}
-
-impl From<u20> for isize {
-    fn from(val: u20) -> Self { val.0 as isize }
-}
-
-impl From<u20> for u64 {
-    fn from(val: u20) -> Self { val.0 as u64 }
-}
-
-impl From<u20> for u128 {
-    fn from(val: u20) -> Self { val.0 as u128 }
-}
-
-impl From<u20> for usize {
-    fn from(val: u20) -> Self { val.0 as usize }
-}
-
-impl From<u24> for i32 {
-    fn from(val: u24) -> Self { val.0 as i32 }
-}
-
-impl From<u24> for i64 {
-    fn from(val: u24) -> Self { val.0 as i64 }
-}
-
-impl From<u24> for i128 {
-    fn from(val: u24) -> Self { val.0 as i128 }
-}
-
-impl From<u24> for isize {
-    fn from(val: u24) -> Self { val.0 as isize }
-}
-
-impl From<u24> for u64 {
-    fn from(val: u24) -> Self { val.0 as u64 }
-}
-
-impl From<u24> for u128 {
-    fn from(val: u24) -> Self { val.0 as u128 }
-}
-
-impl From<u24> for usize {
-    fn from(val: u24) -> Self { val.0 as usize }
 }
 
 impl From<u48> for i64 {
@@ -746,48 +688,6 @@ impl u24 {
         inner.copy_from_slice(&self.0.to_be_bytes()[1..]);
         inner
     }
-
-    /// Converts into `i32` type.
-    pub const fn to_i32(&self) -> i32 { self.0 as i32 }
-
-    /// Converts into `i64` type.
-    pub const fn to_i64(&self) -> i64 { self.0 as i64 }
-
-    /// Converts into `i128` type.
-    pub const fn to_i128(&self) -> i128 { self.0 as i128 }
-
-    /// Converts into `isize` type.
-    pub const fn to_isize(&self) -> isize { self.0 as isize }
-
-    /// Converts into `u64` type.
-    pub const fn to_u64(&self) -> u64 { self.0 as u64 }
-
-    /// Converts into `i128` type.
-    pub const fn to_u128(&self) -> u128 { self.0 as u128 }
-
-    /// Converts into `usize` type.
-    pub const fn to_usize(&self) -> usize { self.0 as usize }
-
-    /// Converts into `i32` type.
-    pub const fn into_i32(self) -> i32 { self.0 as i32 }
-
-    /// Converts into `i64` type.
-    pub const fn into_i64(self) -> i64 { self.0 as i64 }
-
-    /// Converts into `i128` type.
-    pub const fn into_i128(self) -> i128 { self.0 as i128 }
-
-    /// Converts into `isize` type.
-    pub const fn into_isize(self) -> isize { self.0 as isize }
-
-    /// Converts into `u64` type.
-    pub const fn into_u64(self) -> u64 { self.0 as u64 }
-
-    /// Converts into `u128` type.
-    pub const fn into_u128(self) -> u128 { self.0 as u128 }
-
-    /// Converts into `usize` type.
-    pub const fn into_usize(self) -> usize { self.0 as usize }
 }
 
 macro_rules! impl_subu64 {
