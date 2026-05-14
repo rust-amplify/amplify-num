@@ -513,6 +513,7 @@ construct_posit!(
 mod tests {
     #![allow(unused)]
 
+    use rand::RngExt;
     use super::*;
 
     construct_posit!(Posit8Es1, 8, 1, u8, 0, 0xff, 0x80, u16, 0, 0xffff, to_u8, into_u8);
@@ -745,10 +746,10 @@ mod tests {
 
     fn rand_posit8(fun: fn(Posit8, Posit8, f32, f32) -> (Posit8, f32)) {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..100000 {
-            let x: u8 = rng.gen();
-            let y: u8 = rng.gen();
+            let x: u8 = rng.random();
+            let y: u8 = rng.random();
             let (p, f) = fun(
                 Posit8::from_bits(x),
                 Posit8::from_bits(y),
@@ -761,10 +762,10 @@ mod tests {
 
     fn rand_posit16(fun: fn(Posit16, Posit16, f64, f64) -> (Posit16, f64)) {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..100000 {
-            let x: u16 = rng.gen();
-            let y: u16 = rng.gen();
+            let x: u16 = rng.random();
+            let y: u16 = rng.random();
             let (p, f) = fun(
                 Posit16::from_bits(x),
                 Posit16::from_bits(y),

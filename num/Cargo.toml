@@ -21,7 +21,7 @@ rust-version = "1.72.0" # Due to dep: in this file
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
-rand = "0.8.5"
+rand = "0.10.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
 
@@ -35,8 +35,8 @@ alloc = []
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
-rand = { version = "0.8.4", optional = true }
-getrandom = { version = "0.2", features = ["js"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
+rand = { version = "0.10.1" }
+getrandom = { version = "0.4.2", features = ["wasm_js"] }
