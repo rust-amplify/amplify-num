@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![allow(clippy::approx_constant)]
+
 #[macro_use]
 extern crate amplify_apfloat;
 extern crate amplify_num;
