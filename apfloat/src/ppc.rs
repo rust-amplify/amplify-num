@@ -14,7 +14,7 @@ use core::ops::Neg;
 
 use amplify_num::u256;
 
-use crate::{ieee, Category, ExpInt, Float, FloatConvert, ParseError, Round, Status, StatusAnd};
+use crate::{Category, ExpInt, Float, FloatConvert, ParseError, Round, Status, StatusAnd, ieee};
 
 #[must_use]
 #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Debug)]

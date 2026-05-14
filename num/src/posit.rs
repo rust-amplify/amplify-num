@@ -14,7 +14,7 @@
 // If not, see <https://opensource.org/licenses/MIT>.
 
 use crate::error::PositDecodeError;
-use crate::{u1024, u256, u512};
+use crate::{u256, u512, u1024};
 
 macro_rules! construct_posit {
     (

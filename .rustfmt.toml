@@ -1,6 +1,11 @@
 edition = "2024"
 style_edition = "2024"
 
+max_width = 100
+array_width = 100
+attr_fn_like_width = 100
+fn_call_width = 100
+
 format_code_in_doc_comments = true
 format_macro_matchers = true
 format_macro_bodies = true
@@ -12,6 +17,10 @@ use_field_init_shorthand = true
 use_try_shorthand = true
 wrap_comments = true
 unstable_features = true
+where_single_line = true
+empty_item_single_line = true
+binop_separator = "Back"
+fn_single_line = true
 
 imports_granularity = "Module"
 group_imports = "StdExternalCrate"

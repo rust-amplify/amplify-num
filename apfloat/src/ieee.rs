@@ -21,8 +21,8 @@ use std::vec::Vec;
 use amplify_num::u256;
 
 use crate::{
-    Category, ExpInt, Float, FloatConvert, ParseError, Round, Status, StatusAnd, IEK_INF, IEK_NAN,
-    IEK_ZERO,
+    Category, ExpInt, Float, FloatConvert, IEK_INF, IEK_NAN, IEK_ZERO, ParseError, Round, Status,
+    StatusAnd,
 };
 
 #[must_use]
@@ -2327,7 +2327,7 @@ mod sig {
     use core::cmp::Ordering;
     use core::mem;
 
-    use super::{limbs_for_bits, ExpInt, Limb, Loss, LIMB_BITS};
+    use super::{ExpInt, LIMB_BITS, Limb, Loss, limbs_for_bits};
 
     pub(super) fn is_all_zeros(limbs: &[Limb]) -> bool { limbs.iter().all(|&l| l.is_zero()) }
 
