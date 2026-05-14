@@ -1109,4 +1109,410 @@ mod test {
         assert_eq!(format!("{:#b}", u_20), "0b11111111111111111111");
         assert_eq!(format!("{:#b}", u_24), "0b111111111111111111111111");
     }
+
+    #[test]
+    fn from_inner_type() {
+        // From<uN> for inner type (construct_smallint generates From<$ty> for $inner)
+        assert_eq!(u8::from(u1::MAX), 1u8);
+        assert_eq!(u8::from(u2::MAX), 3u8);
+        assert_eq!(u8::from(u3::MAX), 7u8);
+        assert_eq!(u8::from(u4::MAX), 15u8);
+        assert_eq!(u8::from(u5::MAX), 31u8);
+        assert_eq!(u8::from(u6::MAX), 63u8);
+        assert_eq!(u8::from(u7::MAX), 127u8);
+        assert_eq!(u16::from(u10::MAX), 0x3FF);
+        assert_eq!(u16::from(u12::MAX), 0xFFF);
+        assert_eq!(u16::from(u14::MAX), 0x3FFF);
+        assert_eq!(u32::from(u20::MAX), 0xF_FF_FF);
+        assert_eq!(u32::from(u24::MAX), 0xFF_FF_FF);
+        assert_eq!(u64::from(u40::MAX), 0xFF_FFFF_FFFF);
+        assert_eq!(u64::from(u48::MAX), 0xFFFF_FFFF_FFFF);
+        assert_eq!(u64::from(u56::MAX), 0xFF_FFFF_FFFF_FFFF);
+
+        // Also test ZERO/MIN
+        assert_eq!(u8::from(u1::ZERO), 0u8);
+        assert_eq!(u8::from(u4::MIN), 0u8);
+        assert_eq!(u16::from(u10::ZERO), 0u16);
+        assert_eq!(u32::from(u20::ZERO), 0u32);
+        assert_eq!(u64::from(u40::ZERO), 0u64);
+    }
+
+    #[test]
+    fn into_inner_type() {
+        // into_u8 / into_u16 / into_u32 / into_u64 (consuming conversion)
+        assert_eq!(u1::MAX.into_u8(), 1u8);
+        assert_eq!(u2::MAX.into_u8(), 3u8);
+        assert_eq!(u3::MAX.into_u8(), 7u8);
+        assert_eq!(u4::MAX.into_u8(), 15u8);
+        assert_eq!(u5::MAX.into_u8(), 31u8);
+        assert_eq!(u6::MAX.into_u8(), 63u8);
+        assert_eq!(u7::MAX.into_u8(), 127u8);
+        assert_eq!(u10::MAX.into_u16(), 0x3FF);
+        assert_eq!(u12::MAX.into_u16(), 0xFFF);
+        assert_eq!(u14::MAX.into_u16(), 0x3FFF);
+        assert_eq!(u20::MAX.into_u32(), 0xF_FF_FF);
+        assert_eq!(u24::MAX.into_u32(), 0xFF_FF_FF);
+        assert_eq!(u40::MAX.into_u64(), 0xFF_FFFF_FFFF);
+        assert_eq!(u48::MAX.into_u64(), 0xFFFF_FFFF_FFFF);
+        assert_eq!(u56::MAX.into_u64(), 0xFF_FFFF_FFFF_FFFF);
+
+        // ZERO
+        assert_eq!(u1::ZERO.into_u8(), 0u8);
+        assert_eq!(u10::ZERO.into_u16(), 0u16);
+        assert_eq!(u20::ZERO.into_u32(), 0u32);
+        assert_eq!(u40::ZERO.into_u64(), 0u64);
+    }
+
+    #[test]
+    fn from_into_wider_types_u8_based() {
+        // impl_from_into is NOT called for u1..u7; they only have From<$ty> for $inner
+        // (u8). But u10, u12, u14, u20, u24 do have impl_from_into.
+
+        let v10 = u10::with(500);
+        assert_eq!(i32::from(v10), 500i32);
+        assert_eq!(i64::from(v10), 500i64);
+        assert_eq!(i128::from(v10), 500i128);
+        assert_eq!(isize::from(v10), 500isize);
+        assert_eq!(u64::from(v10), 500u64);
+        assert_eq!(u128::from(v10), 500u128);
+        assert_eq!(usize::from(v10), 500usize);
+
+        let v12 = u12::with(2048);
+        assert_eq!(i32::from(v12), 2048i32);
+        assert_eq!(u64::from(v12), 2048u64);
+
+        let v14 = u14::with(10000);
+        assert_eq!(i64::from(v14), 10000i64);
+        assert_eq!(u128::from(v14), 10000u128);
+
+        let v20 = u20::with(0xABCDE);
+        assert_eq!(i32::from(v20), 0xABCDE_i32);
+        assert_eq!(u64::from(v20), 0xABCDE_u64);
+
+        let v24 = u24::with(0xABCDEF);
+        assert_eq!(i32::from(v24), 0xABCDEF_i32);
+        assert_eq!(u128::from(v24), 0xABCDEF_u128);
+    }
+
+    #[test]
+    fn to_wider_types() {
+        // to_i32, to_i64, to_i128, to_isize, to_u64, to_u128, to_usize
+        // from impl_from_into (u10, u12, u14, u20, u24)
+        let v10 = u10::with(777);
+        assert_eq!(v10.to_i32(), 777i32);
+        assert_eq!(v10.to_i64(), 777i64);
+        assert_eq!(v10.to_i128(), 777i128);
+        assert_eq!(v10.to_isize(), 777isize);
+        assert_eq!(v10.to_u64(), 777u64);
+        assert_eq!(v10.to_u128(), 777u128);
+        assert_eq!(v10.to_usize(), 777usize);
+
+        let v24 = u24::MAX;
+        assert_eq!(v24.to_i32(), 0xFF_FF_FF_i32);
+        assert_eq!(v24.to_u64(), 0xFF_FF_FF_u64);
+        assert_eq!(v24.to_u128(), 0xFF_FF_FF_u128);
+    }
+
+    #[test]
+    fn into_wider_types() {
+        // into_i32, into_i64, into_i128, into_isize, into_u64, into_u128, into_usize
+        // from impl_from_into (u10, u12, u14, u20, u24)
+        let v12 = u12::with(1234);
+        assert_eq!(v12.into_i32(), 1234i32);
+        assert_eq!(v12.into_i64(), 1234i64);
+        assert_eq!(v12.into_i128(), 1234i128);
+        assert_eq!(v12.into_isize(), 1234isize);
+        assert_eq!(v12.into_u64(), 1234u64);
+        assert_eq!(v12.into_u128(), 1234u128);
+        assert_eq!(v12.into_usize(), 1234usize);
+
+        let v20 = u20::MAX;
+        assert_eq!(v20.into_i32(), 0xF_FF_FF_i32);
+        assert_eq!(v20.into_u64(), 0xF_FF_FF_u64);
+    }
+
+    #[test]
+    #[cfg(target_arch = "wasm32")]
+    fn subu64_from_conversions() {
+        // From<u40/u48/u56> for wider types
+        let v40 = u40::with(0xCDEF_1234);
+        assert_eq!(i128::from(v40), 0xAB_CDEF_1234_i128);
+        assert_eq!(isize::from(v40), 0xCDEF_1234_isize);
+        assert_eq!(u128::from(v40), 0xAB_CDEF_1234_u128);
+        assert_eq!(usize::from(v40), 0xCDEF_1234_usize);
+
+        let v48 = u48::with(0xABCD_EF12_3456);
+        assert_eq!(i64::from(v48), 0xABCD_EF12_3456_i64);
+        assert_eq!(i128::from(v48), 0xABCD_EF12_3456_i128);
+        assert_eq!(isize::from(v48), 0xEF12_3456_isize);
+        assert_eq!(u128::from(v48), 0xABCD_EF12_3456_u128);
+        assert_eq!(usize::from(v48), 0xEF12_3456_usize);
+
+        let v56 = u56::with(0xAB_CDEF_1234_5678);
+        assert_eq!(i64::from(v56), 0xAB_CDEF_1234_5678_i64);
+        assert_eq!(i128::from(v56), 0xAB_CDEF_1234_5678_i128);
+        assert_eq!(isize::from(v56), 0x1234_5678_isize);
+        assert_eq!(u128::from(v56), 0xAB_CDEF_1234_5678_u128);
+        assert_eq!(usize::from(v56), 0x1234_5678_usize);
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn subu64_from_conversions() {
+        // From<u40/u48/u56> for wider types
+        let v40 = u40::with(0xAB_CDEF_1234);
+        assert_eq!(i128::from(v40), 0xAB_CDEF_1234_i128);
+        assert_eq!(isize::from(v40), 0xAB_CDEF_1234_isize);
+        assert_eq!(u128::from(v40), 0xAB_CDEF_1234_u128);
+        assert_eq!(usize::from(v40), 0xAB_CDEF_1234_usize);
+
+        let v48 = u48::with(0xABCD_EF12_3456);
+        assert_eq!(i64::from(v48), 0xABCD_EF12_3456_i64);
+        assert_eq!(i128::from(v48), 0xABCD_EF12_3456_i128);
+        assert_eq!(isize::from(v48), 0xABCD_EF12_3456_isize);
+        assert_eq!(u128::from(v48), 0xABCD_EF12_3456_u128);
+        assert_eq!(usize::from(v48), 0xABCD_EF12_3456_usize);
+
+        let v56 = u56::with(0xAB_CDEF_1234_5678);
+        assert_eq!(i64::from(v56), 0xAB_CDEF_1234_5678_i64);
+        assert_eq!(i128::from(v56), 0xAB_CDEF_1234_5678_i128);
+        assert_eq!(isize::from(v56), 0xAB_CDEF_1234_5678_isize);
+        assert_eq!(u128::from(v56), 0xAB_CDEF_1234_5678_u128);
+        assert_eq!(usize::from(v56), 0xAB_CDEF_1234_5678_usize);
+    }
+
+    #[test]
+    fn subu64_to_into_methods() {
+        // to_* and into_* from impl_subu64 macro
+        let v40 = u40::with(12345);
+        assert_eq!(v40.to_i64(), 12345i64);
+        assert_eq!(v40.to_i128(), 12345i128);
+        assert_eq!(v40.to_isize(), 12345isize);
+        assert_eq!(v40.to_u128(), 12345u128);
+        assert_eq!(v40.to_usize(), 12345usize);
+        assert_eq!(v40.into_i64(), 12345i64);
+        assert_eq!(v40.into_i128(), 12345i128);
+        assert_eq!(v40.into_isize(), 12345isize);
+        assert_eq!(v40.into_u128(), 12345u128);
+        assert_eq!(v40.into_usize(), 12345usize);
+
+        let v48 = u48::with(99999);
+        assert_eq!(v48.to_i64(), 99999i64);
+        assert_eq!(v48.to_i128(), 99999i128);
+        assert_eq!(v48.to_isize(), 99999isize);
+        assert_eq!(v48.to_u128(), 99999u128);
+        assert_eq!(v48.to_usize(), 99999usize);
+        assert_eq!(v48.into_i64(), 99999i64);
+        assert_eq!(v48.into_i128(), 99999i128);
+        assert_eq!(v48.into_isize(), 99999isize);
+        assert_eq!(v48.into_u128(), 99999u128);
+        assert_eq!(v48.into_usize(), 99999usize);
+
+        let v56 = u56::MAX;
+        assert_eq!(v56.to_i64(), 0xFF_FFFF_FFFF_FFFF_i64);
+        assert_eq!(v56.to_u128(), 0xFF_FFFF_FFFF_FFFF_u128);
+        assert_eq!(v56.into_i64(), 0xFF_FFFF_FFFF_FFFF_i64);
+        assert_eq!(v56.into_u128(), 0xFF_FFFF_FFFF_FFFF_u128);
+    }
+
+    #[test]
+    fn inter_smallint_from_conversions() {
+        // From<u1> for u2..u7
+        assert_eq!(u2::from(u1::MAX), u2::with(1));
+        assert_eq!(u3::from(u1::MAX), u3::with(1));
+        assert_eq!(u4::from(u1::MAX), u4::with(1));
+        assert_eq!(u5::from(u1::MAX), u5::with(1));
+        assert_eq!(u6::from(u1::MAX), u6::with(1));
+        assert_eq!(u7::from(u1::MAX), u7::with(1));
+
+        // From<u2> for u3..u7
+        assert_eq!(u3::from(u2::MAX), u3::with(3));
+        assert_eq!(u4::from(u2::MAX), u4::with(3));
+        assert_eq!(u5::from(u2::MAX), u5::with(3));
+        assert_eq!(u6::from(u2::MAX), u6::with(3));
+        assert_eq!(u7::from(u2::MAX), u7::with(3));
+
+        // From<u3> for u4..u7
+        assert_eq!(u4::from(u3::MAX), u4::with(7));
+        assert_eq!(u5::from(u3::MAX), u5::with(7));
+        assert_eq!(u6::from(u3::MAX), u6::with(7));
+        assert_eq!(u7::from(u3::MAX), u7::with(7));
+
+        // From<u4> for u5..u7
+        assert_eq!(u5::from(u4::MAX), u5::with(15));
+        assert_eq!(u6::from(u4::MAX), u6::with(15));
+        assert_eq!(u7::from(u4::MAX), u7::with(15));
+
+        // From<u5> for u6..u7
+        assert_eq!(u6::from(u5::MAX), u6::with(31));
+        assert_eq!(u7::from(u5::MAX), u7::with(31));
+
+        // From<u6> for u7
+        assert_eq!(u7::from(u6::MAX), u7::with(63));
+
+        // Zero conversions
+        assert_eq!(u7::from(u1::ZERO), u7::with(0));
+        assert_eq!(u5::from(u3::ZERO), u5::with(0));
+    }
+
+    #[test]
+    fn zero_and_min_all_types() {
+        // ZERO and MIN are both 0 for all smallint types
+        // Verify constants equality
+        assert_eq!(u1::ZERO, u1::MIN);
+        assert_eq!(u2::ZERO, u2::MIN);
+        assert_eq!(u3::ZERO, u3::MIN);
+        assert_eq!(u4::ZERO, u4::MIN);
+        assert_eq!(u5::ZERO, u5::MIN);
+        assert_eq!(u6::ZERO, u6::MIN);
+        assert_eq!(u7::ZERO, u7::MIN);
+        assert_eq!(u10::ZERO, u10::MIN);
+        assert_eq!(u12::ZERO, u12::MIN);
+        assert_eq!(u14::ZERO, u14::MIN);
+        assert_eq!(u20::ZERO, u20::MIN);
+        assert_eq!(u24::ZERO, u24::MIN);
+        assert_eq!(u40::ZERO, u40::MIN);
+        assert_eq!(u48::ZERO, u48::MIN);
+        assert_eq!(u56::ZERO, u56::MIN);
+
+        // to_inner for ZERO
+        assert_eq!(u1::ZERO.to_u8(), 0u8);
+        assert_eq!(u2::ZERO.to_u8(), 0u8);
+        assert_eq!(u3::ZERO.to_u8(), 0u8);
+        assert_eq!(u4::ZERO.to_u8(), 0u8);
+        assert_eq!(u5::ZERO.to_u8(), 0u8);
+        assert_eq!(u6::ZERO.to_u8(), 0u8);
+        assert_eq!(u7::ZERO.to_u8(), 0u8);
+        assert_eq!(u10::ZERO.to_u16(), 0u16);
+        assert_eq!(u12::ZERO.to_u16(), 0u16);
+        assert_eq!(u14::ZERO.to_u16(), 0u16);
+        assert_eq!(u20::ZERO.to_u32(), 0u32);
+        assert_eq!(u24::ZERO.to_u32(), 0u32);
+        assert_eq!(u40::ZERO.to_u64(), 0u64);
+        assert_eq!(u48::ZERO.to_u64(), 0u64);
+        assert_eq!(u56::ZERO.to_u64(), 0u64);
+
+        // to_inner for MIN
+        assert_eq!(u1::MIN.to_u8(), 0u8);
+        assert_eq!(u2::MIN.to_u8(), 0u8);
+        assert_eq!(u3::MIN.to_u8(), 0u8);
+        assert_eq!(u4::MIN.to_u8(), 0u8);
+        assert_eq!(u5::MIN.to_u8(), 0u8);
+        assert_eq!(u6::MIN.to_u8(), 0u8);
+        assert_eq!(u7::MIN.to_u8(), 0u8);
+        assert_eq!(u10::MIN.to_u16(), 0u16);
+        assert_eq!(u12::MIN.to_u16(), 0u16);
+        assert_eq!(u14::MIN.to_u16(), 0u16);
+        assert_eq!(u20::MIN.to_u32(), 0u32);
+        assert_eq!(u24::MIN.to_u32(), 0u32);
+        assert_eq!(u40::MIN.to_u64(), 0u64);
+        assert_eq!(u48::MIN.to_u64(), 0u64);
+        assert_eq!(u56::MIN.to_u64(), 0u64);
+
+        // into_inner for ZERO
+        assert_eq!(u1::ZERO.into_u8(), 0u8);
+        assert_eq!(u2::ZERO.into_u8(), 0u8);
+        assert_eq!(u3::ZERO.into_u8(), 0u8);
+        assert_eq!(u4::ZERO.into_u8(), 0u8);
+        assert_eq!(u5::ZERO.into_u8(), 0u8);
+        assert_eq!(u6::ZERO.into_u8(), 0u8);
+        assert_eq!(u7::ZERO.into_u8(), 0u8);
+        assert_eq!(u10::ZERO.into_u16(), 0u16);
+        assert_eq!(u12::ZERO.into_u16(), 0u16);
+        assert_eq!(u14::ZERO.into_u16(), 0u16);
+        assert_eq!(u20::ZERO.into_u32(), 0u32);
+        assert_eq!(u24::ZERO.into_u32(), 0u32);
+        assert_eq!(u40::ZERO.into_u64(), 0u64);
+        assert_eq!(u48::ZERO.into_u64(), 0u64);
+        assert_eq!(u56::ZERO.into_u64(), 0u64);
+
+        // From<$ty> for $inner with ZERO
+        assert_eq!(u8::from(u1::ZERO), 0u8);
+        assert_eq!(u8::from(u2::ZERO), 0u8);
+        assert_eq!(u8::from(u3::ZERO), 0u8);
+        assert_eq!(u8::from(u4::ZERO), 0u8);
+        assert_eq!(u8::from(u5::ZERO), 0u8);
+        assert_eq!(u8::from(u6::ZERO), 0u8);
+        assert_eq!(u8::from(u7::ZERO), 0u8);
+        assert_eq!(u16::from(u10::ZERO), 0u16);
+        assert_eq!(u16::from(u12::ZERO), 0u16);
+        assert_eq!(u16::from(u14::ZERO), 0u16);
+        assert_eq!(u32::from(u20::ZERO), 0u32);
+        assert_eq!(u32::from(u24::ZERO), 0u32);
+        assert_eq!(u64::from(u40::ZERO), 0u64);
+        assert_eq!(u64::from(u48::ZERO), 0u64);
+        assert_eq!(u64::from(u56::ZERO), 0u64);
+
+        // From<$ty> for $inner with MIN
+        assert_eq!(u8::from(u1::MIN), 0u8);
+        assert_eq!(u8::from(u2::MIN), 0u8);
+        assert_eq!(u8::from(u3::MIN), 0u8);
+        assert_eq!(u8::from(u4::MIN), 0u8);
+        assert_eq!(u8::from(u5::MIN), 0u8);
+        assert_eq!(u8::from(u6::MIN), 0u8);
+        assert_eq!(u8::from(u7::MIN), 0u8);
+        assert_eq!(u16::from(u10::MIN), 0u16);
+        assert_eq!(u16::from(u12::MIN), 0u16);
+        assert_eq!(u16::from(u14::MIN), 0u16);
+        assert_eq!(u32::from(u20::MIN), 0u32);
+        assert_eq!(u32::from(u24::MIN), 0u32);
+        assert_eq!(u64::from(u40::MIN), 0u64);
+        assert_eq!(u64::from(u48::MIN), 0u64);
+        assert_eq!(u64::from(u56::MIN), 0u64);
+
+        // ZERO equals with(0)
+        assert_eq!(u1::ZERO, u1::with(0));
+        assert_eq!(u2::ZERO, u2::with(0));
+        assert_eq!(u3::ZERO, u3::with(0));
+        assert_eq!(u4::ZERO, u4::with(0));
+        assert_eq!(u5::ZERO, u5::with(0));
+        assert_eq!(u6::ZERO, u6::with(0));
+        assert_eq!(u7::ZERO, u7::with(0));
+        assert_eq!(u10::ZERO, u10::with(0));
+        assert_eq!(u12::ZERO, u12::with(0));
+        assert_eq!(u14::ZERO, u14::with(0));
+        assert_eq!(u20::ZERO, u20::with(0));
+        assert_eq!(u24::ZERO, u24::with(0));
+        assert_eq!(u40::ZERO, u40::with(0));
+        assert_eq!(u48::ZERO, u48::with(0));
+        assert_eq!(u56::ZERO, u56::with(0));
+
+        // ZERO/MIN wider conversions (impl_from_into types: u10, u12, u14, u20, u24)
+        assert_eq!(u10::ZERO.to_i32(), 0i32);
+        assert_eq!(u12::ZERO.to_i64(), 0i64);
+        assert_eq!(u14::ZERO.to_u128(), 0u128);
+        assert_eq!(u20::ZERO.to_usize(), 0usize);
+        assert_eq!(u24::ZERO.to_isize(), 0isize);
+        assert_eq!(i32::from(u10::MIN), 0i32);
+        assert_eq!(u64::from(u12::MIN), 0u64);
+        assert_eq!(u128::from(u14::MIN), 0u128);
+        assert_eq!(i128::from(u20::MIN), 0i128);
+        assert_eq!(usize::from(u24::MIN), 0usize);
+
+        // ZERO/MIN subu64 wider conversions (u40, u48, u56)
+        assert_eq!(u40::ZERO.to_i64(), 0i64);
+        assert_eq!(u40::ZERO.to_i128(), 0i128);
+        assert_eq!(u40::ZERO.to_u128(), 0u128);
+        assert_eq!(u48::ZERO.to_i64(), 0i64);
+        assert_eq!(u48::ZERO.to_usize(), 0usize);
+        assert_eq!(u56::ZERO.to_i64(), 0i64);
+        assert_eq!(u56::ZERO.to_u128(), 0u128);
+        assert_eq!(i128::from(u40::MIN), 0i128);
+        assert_eq!(u128::from(u48::MIN), 0u128);
+        assert_eq!(i64::from(u56::MIN), 0i64);
+    }
+
+    #[test]
+    fn as_ref_test() {
+        assert_eq!(*u1::MAX.as_ref(), 1u8);
+        assert_eq!(*u4::with(10).as_ref(), 10u8);
+        assert_eq!(*u7::ZERO.as_ref(), 0u8);
+        assert_eq!(*u10::with(500).as_ref(), 500u16);
+        assert_eq!(*u14::MAX.as_ref(), 0x3FFFu16);
+        assert_eq!(*u20::with(1000).as_ref(), 1000u32);
+        assert_eq!(*u24::MAX.as_ref(), 0xFF_FF_FFu32);
+        assert_eq!(*u40::with(100).as_ref(), 100u64);
+        assert_eq!(*u48::MAX.as_ref(), 0xFFFF_FFFF_FFFFu64);
+        assert_eq!(*u56::ZERO.as_ref(), 0u64);
+    }
 }
