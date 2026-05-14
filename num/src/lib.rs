@@ -21,7 +21,7 @@
 //!   1024-bit)
 //! * custom sub-8-bit unsigned integers, named *small int types* (from 1 to
 //!   7-bit)
-//! * 12-, 14-, 20-, 24-, 40-, 48- and 56-bit unsigned integer.
+//! * 10-, 12-, 14-, 20-, 24-, 40-, 48- and 56-bit unsigned integer.
 //!
 //! The functions here are designed to be fast.
 
