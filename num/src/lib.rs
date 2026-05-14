@@ -1,7 +1,7 @@
 // Rust language amplification library providing multiple generic trait
 // implementations, type wrappers, derive macros and other language enhancements
 //
-// Written in 2020-2024 by
+// Written in 2020-2026 by
 //     Dr. Maxim Orlovsky <orlovsky@ubideco.org>
 //
 // To the extent possible under law, the author(s) have dedicated all
@@ -13,15 +13,15 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-//! Custom-sized numeric types
+//! Custom-sized numeric types.
 //!
-//! Implementation of a various integer types with custom bit dimension. This
+//! Implementation of various integer types with custom bit dimension. This
 //! includes:
 //! * large signed and unsigned integers, named *large int types* (256, 512,
 //!   1024-bit)
-//! * custom sub-8 bit unsigned integers, named *small int types* (from 1 to
+//! * custom sub-8-bit unsigned integers, named *small int types* (from 1 to
 //!   7-bit)
-//! * 24-, 40-, 48- and 56-bit unsigned integer.
+//! * 12-, 14-, 20-, 24-, 40-, 48- and 56-bit unsigned integer.
 //!
 //! The functions here are designed to be fast.
 
@@ -42,7 +42,7 @@ pub mod posit;
 mod smallint;
 
 pub use bigint::{i1024, i256, i512, u1024, u256, u512};
-pub use smallint::{u1, u2, u24, u3, u4, u40, u48, u5, u56, u6, u7};
+pub use smallint::{u1, u2, u24, u3, u4, u40, u48, u5, u56, u6, u7, u10, u12, u14, u20};
 
 // TODO: Create arbitrary precision types
 // TODO: Move from using `u64` to `u128` for big int types

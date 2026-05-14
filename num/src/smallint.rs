@@ -356,6 +356,42 @@ construct_smallint!(
     doc = "7-bit unsigned integer in the range `0..128`"
 );
 construct_smallint!(
+    u10,
+    u16,
+    to_u16,
+    into_u16,
+    10,
+    0x3_FF,
+    doc = "10-bit unsigned integer in the range `0..1024`"
+);
+construct_smallint!(
+    u12,
+    u16,
+    to_u16,
+    into_u16,
+    12,
+    0xF_FF,
+    doc = "12-bit unsigned integer in the range `0..4096`"
+);
+construct_smallint!(
+    u14,
+    u16,
+    to_u16,
+    into_u16,
+    14,
+    0x3F_FF,
+    doc = "14-bit unsigned integer in the range `0..16384`"
+);
+construct_smallint!(
+    u20,
+    u32,
+    to_u32,
+    into_u32,
+    20,
+    0xF_FF_FF,
+    doc = "20-bit unsigned integer in the range `0..1_048_576`"
+);
+construct_smallint!(
     u24,
     u32,
     to_u32,
@@ -474,6 +510,118 @@ impl From<u5> for u7 {
 
 impl From<u6> for u7 {
     fn from(value: u6) -> Self { Self(value.0) }
+}
+
+impl From<u10> for i32 {
+    fn from(val: u10) -> Self { val.0 as i32 }
+}
+
+impl From<u10> for i64 {
+    fn from(val: u10) -> Self { val.0 as i64 }
+}
+
+impl From<u10> for i128 {
+    fn from(val: u10) -> Self { val.0 as i128 }
+}
+
+impl From<u10> for isize {
+    fn from(val: u10) -> Self { val.0 as isize }
+}
+
+impl From<u10> for u64 {
+    fn from(val: u10) -> Self { val.0 as u64 }
+}
+
+impl From<u10> for u128 {
+    fn from(val: u10) -> Self { val.0 as u128 }
+}
+
+impl From<u10> for usize {
+    fn from(val: u10) -> Self { val.0 as usize }
+}
+
+impl From<u12> for i32 {
+    fn from(val: u12) -> Self { val.0 as i32 }
+}
+
+impl From<u12> for i64 {
+    fn from(val: u12) -> Self { val.0 as i64 }
+}
+
+impl From<u12> for i128 {
+    fn from(val: u12) -> Self { val.0 as i128 }
+}
+
+impl From<u12> for isize {
+    fn from(val: u12) -> Self { val.0 as isize }
+}
+
+impl From<u12> for u64 {
+    fn from(val: u12) -> Self { val.0 as u64 }
+}
+
+impl From<u12> for u128 {
+    fn from(val: u12) -> Self { val.0 as u128 }
+}
+
+impl From<u12> for usize {
+    fn from(val: u12) -> Self { val.0 as usize }
+}
+
+impl From<u14> for i32 {
+    fn from(val: u14) -> Self { val.0 as i32 }
+}
+
+impl From<u14> for i64 {
+    fn from(val: u14) -> Self { val.0 as i64 }
+}
+
+impl From<u14> for i128 {
+    fn from(val: u14) -> Self { val.0 as i128 }
+}
+
+impl From<u14> for isize {
+    fn from(val: u14) -> Self { val.0 as isize }
+}
+
+impl From<u14> for u64 {
+    fn from(val: u14) -> Self { val.0 as u64 }
+}
+
+impl From<u14> for u128 {
+    fn from(val: u14) -> Self { val.0 as u128 }
+}
+
+impl From<u14> for usize {
+    fn from(val: u14) -> Self { val.0 as usize }
+}
+
+impl From<u20> for i32 {
+    fn from(val: u20) -> Self { val.0 as i32 }
+}
+
+impl From<u20> for i64 {
+    fn from(val: u20) -> Self { val.0 as i64 }
+}
+
+impl From<u20> for i128 {
+    fn from(val: u20) -> Self { val.0 as i128 }
+}
+
+impl From<u20> for isize {
+    fn from(val: u20) -> Self { val.0 as isize }
+}
+
+impl From<u20> for u64 {
+    fn from(val: u20) -> Self { val.0 as u64 }
+}
+
+impl From<u20> for u128 {
+    fn from(val: u20) -> Self { val.0 as u128 }
+}
+
+impl From<u20> for usize {
+    fn from(val: u20) -> Self { val.0 as usize }
 }
 
 impl From<u24> for i32 {
@@ -720,6 +868,10 @@ mod test {
         let mut u_5 = u5::try_from(u5::MAX.to_u8()).unwrap();
         let mut u_6 = u6::try_from(u6::MAX.to_u8()).unwrap();
         let mut u_7 = u7::try_from(u7::MAX.to_u8()).unwrap();
+        let mut u_10 = u10::try_from(u10::MAX.to_u16()).unwrap();
+        let mut u_12 = u12::try_from(u12::MAX.to_u16()).unwrap();
+        let mut u_14 = u14::try_from(u14::MAX.to_u16()).unwrap();
+        let mut u_20 = u20::try_from(u20::MAX.to_u32()).unwrap();
         let mut u_24 = u24::try_from(u24::MAX.to_u32()).unwrap();
 
         assert_eq!(u_1, u1::with(1));
@@ -729,6 +881,11 @@ mod test {
         assert_eq!(u_5, u5::with(31));
         assert_eq!(u_6, u6::with(63));
         assert_eq!(u_7, u7::with(127));
+        assert_eq!(u_10, u10::with(0x3FF));
+        assert_eq!(u_12, u12::with(0xFFF));
+        assert_eq!(u_14, u14::with(0x3FFF));
+        assert_eq!(u_20, u20::with(0xF_FF_FF));
+        assert_eq!(u_24, u24::with(0xFF_FF_FF));
 
         assert_eq!(u_1.to_u8(), 1u8);
         assert_eq!(u_2.to_u8(), 3u8);
@@ -737,6 +894,10 @@ mod test {
         assert_eq!(u_5.to_u8(), 31u8);
         assert_eq!(u_6.to_u8(), 63u8);
         assert_eq!(u_7.to_u8(), 127u8);
+        assert_eq!(u_10.to_u16(), (1 << 10) - 1);
+        assert_eq!(u_12.to_u16(), (1 << 12) - 1);
+        assert_eq!(u_14.to_u16(), (1 << 14) - 1);
+        assert_eq!(u_20.to_u32(), (1 << 20) - 1);
         assert_eq!(u_24.to_u32(), (1 << 24) - 1);
 
         u_1 -= 1;
@@ -746,6 +907,10 @@ mod test {
         u_5 -= 1;
         u_6 -= 1;
         u_7 -= 1;
+        u_10 -= 1u16;
+        u_12 -= 1u16;
+        u_14 -= 1u16;
+        u_20 -= 1u32;
         u_24 -= 1u32;
 
         assert_eq!(u_1.to_u8(), 0u8);
@@ -755,6 +920,10 @@ mod test {
         assert_eq!(u_5.to_u8(), 30u8);
         assert_eq!(u_6.to_u8(), 62u8);
         assert_eq!(u_7.to_u8(), 126u8);
+        assert_eq!(u_10.to_u16(), (1 << 10) - 2);
+        assert_eq!(u_12.to_u16(), (1 << 12) - 2);
+        assert_eq!(u_14.to_u16(), (1 << 14) - 2);
+        assert_eq!(u_20.to_u32(), (1 << 20) - 2);
         assert_eq!(u_24.to_u32(), (1 << 24) - 2);
 
         u_1 /= 2;
@@ -785,6 +954,22 @@ mod test {
         u_7 *= 2;
         u_7 += 1;
 
+        u_10 /= 2u16;
+        u_10 *= 2u16;
+        u_10 += 1u16;
+
+        u_12 /= 2u16;
+        u_12 *= 2u16;
+        u_12 += 1u16;
+
+        u_14 /= 2u16;
+        u_14 *= 2u16;
+        u_14 += 1u16;
+
+        u_20 /= 2u32;
+        u_20 *= 2u32;
+        u_20 += 1u32;
+
         u_24 /= 2u32;
         u_24 *= 2u32;
         u_24 += 1u32;
@@ -796,6 +981,10 @@ mod test {
         assert_eq!(u_5.to_u8(), 31u8);
         assert_eq!(u_6.to_u8(), 63u8);
         assert_eq!(u_7.to_u8(), 127u8);
+        assert_eq!(u_10.to_u16(), (1 << 10) - 1);
+        assert_eq!(u_12.to_u16(), (1 << 12) - 1);
+        assert_eq!(u_14.to_u16(), (1 << 14) - 1);
+        assert_eq!(u_20.to_u32(), (1 << 20) - 1);
         assert_eq!(u_24.to_u32(), (1 << 24) - 1);
 
         assert_eq!(u_1.to_u8() % 2, 1);
@@ -805,6 +994,10 @@ mod test {
         assert_eq!(u_5.to_u8() % 2, 1);
         assert_eq!(u_6.to_u8() % 2, 1);
         assert_eq!(u_7.to_u8() % 2, 1);
+        assert_eq!(u_10.to_u16() % 2, 1);
+        assert_eq!(u_12.to_u16() % 2, 1);
+        assert_eq!(u_14.to_u16() % 2, 1);
+        assert_eq!(u_20.to_u32() % 2, 1);
         assert_eq!(u_24.to_u32() % 2, 1);
     }
 
@@ -835,6 +1028,22 @@ mod test {
     #[test]
     #[should_panic(expected = "OverflowError { max: 127, value: 128 }")]
     fn u7_overflow_test() { u7::try_from(128).unwrap(); }
+
+    #[test]
+    #[should_panic(expected = "OverflowError { max: 1023, value: 1024 }")]
+    fn u10_overflow_test() { u10::try_from(1 << 10).unwrap(); }
+
+    #[test]
+    #[should_panic(expected = "OverflowError { max: 4095, value: 4096 }")]
+    fn u12_overflow_test() { u12::try_from(1 << 12).unwrap(); }
+
+    #[test]
+    #[should_panic(expected = "OverflowError { max: 16383, value: 16384 }")]
+    fn u14_overflow_test() { u14::try_from(1 << 14).unwrap(); }
+
+    #[test]
+    #[should_panic(expected = "OverflowError { max: 1048575, value: 1048576 }")]
+    fn u20_overflow_test() { u20::try_from(1 << 20).unwrap(); }
 
     #[test]
     #[should_panic(expected = "OverflowError { max: 16777215, value: 16777216 }")]
@@ -880,6 +1089,10 @@ mod test {
         let u_5 = u5::MAX;
         let u_6 = u6::MAX;
         let u_7 = u7::MAX;
+        let u_10 = u10::MAX;
+        let u_12 = u12::MAX;
+        let u_14 = u14::MAX;
+        let u_20 = u20::MAX;
         let u_24 = u24::MAX;
 
         // UpperHex
@@ -890,7 +1103,12 @@ mod test {
         assert_eq!(format!("{:X}", u_5), "1F");
         assert_eq!(format!("{:X}", u_6), "3F");
         assert_eq!(format!("{:X}", u_7), "7F");
+        assert_eq!(format!("{:X}", u_10), "3FF");
+        assert_eq!(format!("{:X}", u_12), "FFF");
+        assert_eq!(format!("{:X}", u_14), "3FFF");
+        assert_eq!(format!("{:X}", u_20), "FFFFF");
         assert_eq!(format!("{:X}", u_24), "FFFFFF");
+
         assert_eq!(format!("{:#X}", u_1), "0x1");
         assert_eq!(format!("{:#X}", u_2), "0x3");
         assert_eq!(format!("{:#X}", u_3), "0x7");
@@ -898,6 +1116,10 @@ mod test {
         assert_eq!(format!("{:#X}", u_5), "0x1F");
         assert_eq!(format!("{:#X}", u_6), "0x3F");
         assert_eq!(format!("{:#X}", u_7), "0x7F");
+        assert_eq!(format!("{:#X}", u_10), "0x3FF");
+        assert_eq!(format!("{:#X}", u_12), "0xFFF");
+        assert_eq!(format!("{:#X}", u_14), "0x3FFF");
+        assert_eq!(format!("{:#X}", u_20), "0xFFFFF");
         assert_eq!(format!("{:#X}", u_24), "0xFFFFFF");
 
         // LowerHex
@@ -908,7 +1130,12 @@ mod test {
         assert_eq!(format!("{:x}", u_5), "1f");
         assert_eq!(format!("{:x}", u_6), "3f");
         assert_eq!(format!("{:x}", u_7), "7f");
+        assert_eq!(format!("{:x}", u_10), "3ff");
+        assert_eq!(format!("{:x}", u_12), "fff");
+        assert_eq!(format!("{:x}", u_14), "3fff");
+        assert_eq!(format!("{:x}", u_20), "fffff");
         assert_eq!(format!("{:x}", u_24), "ffffff");
+
         assert_eq!(format!("{:#x}", u_1), "0x1");
         assert_eq!(format!("{:#x}", u_2), "0x3");
         assert_eq!(format!("{:#x}", u_3), "0x7");
@@ -916,6 +1143,10 @@ mod test {
         assert_eq!(format!("{:#x}", u_5), "0x1f");
         assert_eq!(format!("{:#x}", u_6), "0x3f");
         assert_eq!(format!("{:#x}", u_7), "0x7f");
+        assert_eq!(format!("{:#x}", u_10), "0x3ff");
+        assert_eq!(format!("{:#x}", u_12), "0xfff");
+        assert_eq!(format!("{:#x}", u_14), "0x3fff");
+        assert_eq!(format!("{:#x}", u_20), "0xfffff");
         assert_eq!(format!("{:#x}", u_24), "0xffffff");
 
         // Octal
@@ -926,7 +1157,12 @@ mod test {
         assert_eq!(format!("{:o}", u_5), "37");
         assert_eq!(format!("{:o}", u_6), "77");
         assert_eq!(format!("{:o}", u_7), "177");
+        assert_eq!(format!("{:o}", u_10), "1777");
+        assert_eq!(format!("{:o}", u_12), "7777");
+        assert_eq!(format!("{:o}", u_14), "37777");
+        assert_eq!(format!("{:o}", u_20), "3777777");
         assert_eq!(format!("{:o}", u_24), "77777777");
+
         assert_eq!(format!("{:#o}", u_1), "0o1");
         assert_eq!(format!("{:#o}", u_2), "0o3");
         assert_eq!(format!("{:#o}", u_3), "0o7");
@@ -934,6 +1170,10 @@ mod test {
         assert_eq!(format!("{:#o}", u_5), "0o37");
         assert_eq!(format!("{:#o}", u_6), "0o77");
         assert_eq!(format!("{:#o}", u_7), "0o177");
+        assert_eq!(format!("{:#o}", u_10), "0o1777");
+        assert_eq!(format!("{:#o}", u_12), "0o7777");
+        assert_eq!(format!("{:#o}", u_14), "0o37777");
+        assert_eq!(format!("{:#o}", u_20), "0o3777777");
         assert_eq!(format!("{:#o}", u_24), "0o77777777");
 
         // Binary
@@ -944,7 +1184,12 @@ mod test {
         assert_eq!(format!("{:b}", u_5), "11111");
         assert_eq!(format!("{:b}", u_6), "111111");
         assert_eq!(format!("{:b}", u_7), "1111111");
+        assert_eq!(format!("{:b}", u_10), "1111111111");
+        assert_eq!(format!("{:b}", u_12), "111111111111");
+        assert_eq!(format!("{:b}", u_14), "11111111111111");
+        assert_eq!(format!("{:b}", u_20), "11111111111111111111");
         assert_eq!(format!("{:b}", u_24), "111111111111111111111111");
+
         assert_eq!(format!("{:#b}", u_1), "0b1");
         assert_eq!(format!("{:#b}", u_2), "0b11");
         assert_eq!(format!("{:#b}", u_3), "0b111");
@@ -952,6 +1197,10 @@ mod test {
         assert_eq!(format!("{:#b}", u_5), "0b11111");
         assert_eq!(format!("{:#b}", u_6), "0b111111");
         assert_eq!(format!("{:#b}", u_7), "0b1111111");
+        assert_eq!(format!("{:#b}", u_10), "0b1111111111");
+        assert_eq!(format!("{:#b}", u_12), "0b111111111111");
+        assert_eq!(format!("{:#b}", u_14), "0b11111111111111");
+        assert_eq!(format!("{:#b}", u_20), "0b11111111111111111111");
         assert_eq!(format!("{:#b}", u_24), "0b111111111111111111111111");
     }
 }
