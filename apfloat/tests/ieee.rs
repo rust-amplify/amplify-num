@@ -8,13 +8,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![allow(clippy::approx_constant)]
+
 #[macro_use]
 extern crate amplify_apfloat;
 extern crate amplify_num;
 
 use amplify_apfloat::ieee::{Double, Half, Oct, Quad, Single, X87DoubleExtended};
 use amplify_apfloat::{
-    Category, ExpInt, Float, FloatConvert, ParseError, Round, Status, IEK_INF, IEK_NAN, IEK_ZERO,
+    Category, ExpInt, Float, FloatConvert, IEK_INF, IEK_NAN, IEK_ZERO, ParseError, Round, Status,
 };
 use amplify_num::{i256, u256};
 
