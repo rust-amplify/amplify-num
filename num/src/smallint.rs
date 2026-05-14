@@ -1237,14 +1237,14 @@ mod test {
         // From<u40/u48/u56> for wider types
         let v40 = u40::with(0xCDEF_1234);
         assert_eq!(i128::from(v40), 0xAB_CDEF_1234_i128);
-        assert_eq!(isize::from(v40), 0xCDEF_1234_isize);
+        assert_eq!(isize::from(v40), 0x1DEF_1234_isize);
         assert_eq!(u128::from(v40), 0xAB_CDEF_1234_u128);
         assert_eq!(usize::from(v40), 0xCDEF_1234_usize);
 
         let v48 = u48::with(0xABCD_EF12_3456);
         assert_eq!(i64::from(v48), 0xABCD_EF12_3456_i64);
         assert_eq!(i128::from(v48), 0xABCD_EF12_3456_i128);
-        assert_eq!(isize::from(v48), 0xEF12_3456_isize);
+        assert_eq!(isize::from(v48), 0x1F12_3456_isize);
         assert_eq!(u128::from(v48), 0xABCD_EF12_3456_u128);
         assert_eq!(usize::from(v48), 0xEF12_3456_usize);
 
