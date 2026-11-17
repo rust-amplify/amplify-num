@@ -20,15 +20,16 @@ Crate adding more number types to rust:
 
 Unlike the primitive integers, all the types panic on an arithmetic overflow in
 both debug and release builds; the cases when an overflow is expected must use
-`checked_*`, `overflowing_*`, `saturating_*` or `wrapping_*` methods.
+the `checked_*`, `overflowing_*`, `saturating_*` or `wrapping_*` trait methods.
 
 The [`traits`](src/traits.rs) module provides the [`Number`](src/traits.rs),
-[`Integer`](src/traits.rs), [`Natural`](src/traits.rs) and [`NonZero`](src/traits.rs)
+[`Integer`](src/traits.rs), [`Unsigned`](src/traits.rs) and [`NonZero`](src/traits.rs)
 category traits, as well as operation-specific checked, overflowing, saturating
 and wrapping arithmetic traits. They cover primitive integers, the custom-width
-integers and core nonzero integers; floating-point types are intentionally
-excluded. For example, a generic helper can use the same checked operation for
-all zero-inclusive integer types:
+integers (providing their overflow-handling arithmetic directly, without
+duplicate inherent methods) and core nonzero integers; floating-point types are
+intentionally excluded. For example, a generic helper can use the same checked
+operation for all zero-inclusive integer types:
 
 ```rust
 use amplify_num::{AddChecked, Number};

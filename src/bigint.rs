@@ -34,6 +34,13 @@ use core::str::{self, FromStr};
 
 use crate::error::{DivError, ParseIntError, ParseLengthError};
 use crate::limbs;
+use crate::traits::{
+    AddChecked, AddOverflowing, AddSaturate, AddWrapping, DivChecked, DivOverflowing, DivSaturate,
+    DivWrapping, Integer, MulChecked, MulOverflowing, MulSaturate, MulWrapping, NegChecked,
+    NegOverflowing, NegSaturate, NegWrapping, Number, RemChecked, RemOverflowing, RemWrapping,
+    ShlChecked, ShlOverflowing, ShlWrapping, ShrChecked, ShrOverflowing, ShrWrapping, SubChecked,
+    SubOverflowing, SubSaturate, SubWrapping, Unsigned,
+};
 
 /// Integer of a fixed size, made of `N` 64-bit limbs kept in the little-endian
 /// order.
@@ -41,13 +48,14 @@ use crate::limbs;
 /// `SIGNED` integers use the two's complement representation. The type mirrors
 /// the API of the primitive integers, with one deliberate difference: the
 /// arithmetic operators panic on overflow in all build profiles, and never wrap
-/// around silently. The `checked_*`, `overflowing_*`, `saturating_*` and
-/// `wrapping_*` methods give explicit control over the overflow handling.
+/// around silently. The arithmetic traits in [`crate::traits`] provide
+/// `checked_*`, `overflowing_*`, `saturating_*` and `wrapping_*` methods for
+/// explicit control over the overflow handling.
 ///
 /// The type does not allocate and can be used on bare-metal targets.
 ///
 /// ```
-/// use amplify_num::{i256, u256};
+/// use amplify_num::{AddChecked, SubSaturate, i256, u256};
 ///
 /// let x = u256::from(u128::MAX) * 3u8 + 2u8;
 /// assert_eq!(x.to_string(), "1020847100762815390390123822295304634367");
@@ -99,34 +107,6 @@ pub type i512 = BigInt<8, true>;
 /// 1024-bit signed integer.
 #[expect(non_camel_case_types)]
 pub type i1024 = BigInt<16, true>;
-
-/// Implements the checked, wrapping and saturating flavors of an overflowing
-/// operation. The last argument tells whether the operation saturates at the
-/// minimal value.
-macro_rules! arithmetics {
-    ($($op:literal: $overflowing:ident => $checked:ident, $wrapping:ident, $saturating:ident,
-       |$lhs:ident, $rhs:ident| $min:expr;)+) => {$(
-        #[doc = concat!("Checked ", $op, ". Returns `None` if an overflow has happened.")]
-        pub fn $checked(self, rhs: impl Into<Self>) -> Option<Self> {
-            let (res, overflow) = self.$overflowing(rhs);
-            (!overflow).then_some(res)
-        }
-
-        #[doc = concat!("Wrapping (modular) ", $op, ".")]
-        pub fn $wrapping(self, rhs: impl Into<Self>) -> Self { self.$overflowing(rhs).0 }
-
-        #[doc = concat!("Saturating ", $op, ". Returns the closest bound of the type if an ")]
-        #[doc = "overflow has happened."]
-        pub fn $saturating(self, rhs: impl Into<Self>) -> Self {
-            let ($lhs, $rhs) = (self, rhs.into());
-            match $lhs.$overflowing($rhs) {
-                (res, false) => res,
-                _ if $min => Self::MIN,
-                _ => Self::MAX,
-            }
-        }
-    )+};
-}
 
 /// Implements the checked, overflowing and wrapping flavors of one of the
 /// results of a combined division. The last argument is the value returned on
@@ -336,55 +316,6 @@ impl<const N: usize, const S: bool> BigInt<N, S> {
     /// value.
     fn negated_if(self, negate: bool) -> Self { if negate { self.wrapping_neg() } else { self } }
 
-    /// Wrapping (modular) negation. The only signed value which wraps around is
-    /// [`Self::MIN`], while among the unsigned values only zero does not.
-    pub fn wrapping_neg(self) -> Self { Self(limbs::neg(&self.0)) }
-
-    /// Calculates `self + rhs`. Returns the wrapped sum and whether an overflow
-    /// has happened.
-    pub fn overflowing_add(self, rhs: impl Into<Self>) -> (Self, bool) {
-        let (mut sum, rhs) = (self, rhs.into());
-        let carry = limbs::add(&mut sum.0, &rhs.0);
-        // A signed sum overflows when the operands share the sign which the sum
-        // lacks.
-        let wrapped =
-            self.is_negative() == rhs.is_negative() && self.is_negative() != sum.is_negative();
-        (sum, if S { wrapped } else { carry })
-    }
-
-    /// Calculates `self - rhs`. Returns the wrapped difference and whether an
-    /// overflow has happened.
-    pub fn overflowing_sub(self, rhs: impl Into<Self>) -> (Self, bool) {
-        let (mut diff, rhs) = (self, rhs.into());
-        let borrow = limbs::sub(&mut diff.0, &rhs.0);
-        // A signed difference overflows when the operands differ in sign and
-        // the result has the sign of the subtrahend.
-        let wrapped =
-            self.is_negative() != rhs.is_negative() && self.is_negative() != diff.is_negative();
-        (diff, if S { wrapped } else { borrow })
-    }
-
-    /// Calculates `self * rhs`. Returns the wrapped product and whether an
-    /// overflow has happened.
-    pub fn overflowing_mul(self, rhs: impl Into<Self>) -> (Self, bool) {
-        let rhs = rhs.into();
-        let negative = self.is_negative() != rhs.is_negative();
-        let (magnitude, overflow) = limbs::mul(&self.magnitude(), &rhs.magnitude());
-        let product = Self(magnitude).negated_if(negative);
-        // A magnitude which fits the limbs still overflows a signed type if it
-        // turns the sign of the product into the opposite of the expected one.
-        (product, overflow || (!product.is_zero() && product.is_negative() != negative))
-    }
-
-    arithmetics! {
-        "addition": overflowing_add => checked_add, wrapping_add, saturating_add,
-            |lhs, _rhs| lhs.is_negative();
-        "subtraction": overflowing_sub => checked_sub, wrapping_sub, saturating_sub,
-            |lhs, _rhs| !S || lhs.is_negative();
-        "multiplication": overflowing_mul => checked_mul, wrapping_mul, saturating_mul,
-            |lhs, rhs| lhs.is_negative() != rhs.is_negative();
-    }
-
     /// Calculates the quotient and the remainder of the division of `self` by
     /// `rhs`, with the quotient rounded towards zero and the remainder having
     /// the sign of `self`.
@@ -418,24 +349,10 @@ impl<const N: usize, const S: bool> BigInt<N, S> {
     }
 
     divisions! {
-        "division": div_rem.0 => checked_div, overflowing_div, wrapping_div, MIN;
-        "remainder": div_rem.1 => checked_rem, overflowing_rem, wrapping_rem, ZERO;
         "Euclidean division": div_rem_euclid.0 =>
             checked_div_euclid, overflowing_div_euclid, wrapping_div_euclid, MIN;
         "Euclidean remainder": div_rem_euclid.1 =>
             checked_rem_euclid, overflowing_rem_euclid, wrapping_rem_euclid, ZERO;
-    }
-
-    /// Saturating division. Returns [`Self::MAX`] if an overflow has happened.
-    ///
-    /// # Panics
-    ///
-    /// If `rhs` is zero.
-    pub fn saturating_div(self, rhs: impl Into<Self>) -> Self {
-        match self.overflowing_div(rhs) {
-            (quot, false) => quot,
-            _ => Self::MAX,
-        }
     }
 
     /// Calculates the quotient of the Euclidean division of `self` by `rhs`.
@@ -463,18 +380,6 @@ impl<const N: usize, const S: bool> BigInt<N, S> {
     /// for the rest.
     pub fn unbounded_shr(self, rhs: u32) -> Self {
         Self(limbs::shr(&self.0, rhs, if self.is_negative() { u64::MAX } else { 0 }))
-    }
-
-    /// Checked shift left. Returns `None` if `rhs` is not less than
-    /// [`Self::BITS`].
-    pub fn checked_shl(self, rhs: u32) -> Option<Self> {
-        (rhs < Self::BITS).then(|| self.unbounded_shl(rhs))
-    }
-
-    /// Checked shift right. Returns `None` if `rhs` is not less than
-    /// [`Self::BITS`].
-    pub fn checked_shr(self, rhs: u32) -> Option<Self> {
-        (rhs < Self::BITS).then(|| self.unbounded_shr(rhs))
     }
 
     /// Parses the integer from a string of digits in the given `radix`,
@@ -647,6 +552,238 @@ macro_rules! from_smaller {
 }
 from_smaller!(4 => 8, 4 => 16, 8 => 16);
 
+impl<const N: usize, const S: bool> Number for BigInt<N, S> {
+    const BITS: u32 = Self::BITS;
+    const MIN: Self = Self::MIN;
+    const MAX: Self = Self::MAX;
+    const ZERO: Self = Self::ZERO;
+    const ONE: Self = Self::ONE;
+}
+
+impl<const N: usize> Unsigned for BigInt<N, false> {}
+
+impl<const N: usize> Integer for BigInt<N, true> {
+    const NEG_ONE: Self = Self::from_inner([u64::MAX; N]);
+
+    fn is_negative(self) -> bool { BigInt::is_negative(&self) }
+}
+
+impl<Rhs: Into<Self>, const N: usize, const S: bool> AddOverflowing<Rhs> for BigInt<N, S> {
+    type Output = Self;
+
+    fn overflowing_add(self, rhs: Rhs) -> (Self, bool) {
+        let (mut sum, rhs) = (self, rhs.into());
+        let carry = limbs::add(&mut sum.0, &rhs.0);
+        // A signed sum overflows when the operands share the sign which the sum
+        // lacks.
+        let wrapped =
+            self.is_negative() == rhs.is_negative() && self.is_negative() != sum.is_negative();
+        (sum, if S { wrapped } else { carry })
+    }
+}
+
+impl<Rhs: Into<Self>, const N: usize, const S: bool> SubOverflowing<Rhs> for BigInt<N, S> {
+    type Output = Self;
+
+    fn overflowing_sub(self, rhs: Rhs) -> (Self, bool) {
+        let (mut diff, rhs) = (self, rhs.into());
+        let borrow = limbs::sub(&mut diff.0, &rhs.0);
+        // A signed difference overflows when the operands differ in sign and
+        // the result has the sign of the subtrahend.
+        let wrapped =
+            self.is_negative() != rhs.is_negative() && self.is_negative() != diff.is_negative();
+        (diff, if S { wrapped } else { borrow })
+    }
+}
+
+impl<Rhs: Into<Self>, const N: usize, const S: bool> MulOverflowing<Rhs> for BigInt<N, S> {
+    type Output = Self;
+
+    fn overflowing_mul(self, rhs: Rhs) -> (Self, bool) {
+        let rhs = rhs.into();
+        let negative = self.is_negative() != rhs.is_negative();
+        let (magnitude, overflow) = limbs::mul(&self.magnitude(), &rhs.magnitude());
+        let product = Self(magnitude).negated_if(negative);
+        // A magnitude which fits the limbs still overflows a signed type if it
+        // turns the sign of the product into the opposite of the expected one.
+        (product, overflow || (!product.is_zero() && product.is_negative() != negative))
+    }
+}
+
+/// Implements the checked, wrapping and saturating traits of an overflowing
+/// operation. The last argument tells whether the operation saturates at the
+/// minimal value.
+macro_rules! arithmetics {
+    ($($overflowing:ident =>
+       $checked_trait:ident::$checked:ident,
+       $wrapping_trait:ident::$wrapping:ident,
+       $saturating_trait:ident::$saturating:ident,
+       |$lhs:ident, $rhs:ident| $min:expr;)+) => {$(
+        impl<Rhs: Into<Self>, const N: usize, const S: bool> $checked_trait<Rhs> for BigInt<N, S> {
+            type Output = Self;
+
+            fn $checked(self, rhs: Rhs) -> Option<Self> {
+                let (res, overflow) = self.$overflowing(rhs);
+                (!overflow).then_some(res)
+            }
+        }
+
+        impl<Rhs: Into<Self>, const N: usize, const S: bool> $wrapping_trait<Rhs> for BigInt<N, S> {
+            type Output = Self;
+
+            fn $wrapping(self, rhs: Rhs) -> Self { self.$overflowing(rhs).0 }
+        }
+
+        impl<Rhs: Into<Self>, const N: usize, const S: bool> $saturating_trait<Rhs>
+            for BigInt<N, S>
+        {
+            type Output = Self;
+
+            fn $saturating(self, rhs: Rhs) -> Self {
+                let ($lhs, $rhs) = (self, rhs.into());
+                match $lhs.$overflowing($rhs) {
+                    (res, false) => res,
+                    _ if $min => Self::MIN,
+                    _ => Self::MAX,
+                }
+            }
+        }
+    )+};
+}
+
+arithmetics! {
+    overflowing_add => AddChecked::checked_add, AddWrapping::wrapping_add,
+        AddSaturate::saturating_add, |lhs, _rhs| lhs.is_negative();
+    overflowing_sub => SubChecked::checked_sub, SubWrapping::wrapping_sub,
+        SubSaturate::saturating_sub, |lhs, _rhs| !S || lhs.is_negative();
+    overflowing_mul => MulChecked::checked_mul, MulWrapping::wrapping_mul,
+        MulSaturate::saturating_mul, |lhs, rhs| lhs.is_negative() != rhs.is_negative();
+}
+
+macro_rules! division_traits {
+    ($($part:tt =>
+       $checked_trait:ident::$checked:ident,
+       $overflowing_trait:ident::$overflowing:ident,
+       $wrapping_trait:ident::$wrapping:ident, $wrapped:ident;)+) => {$(
+        impl<Rhs: Into<Self>, const N: usize, const S: bool> $checked_trait<Rhs> for BigInt<N, S> {
+            type Output = Self;
+
+            fn $checked(self, rhs: Rhs) -> Option<Self> {
+                self.div_rem(rhs).ok().map(|res| res.$part)
+            }
+        }
+
+        impl<Rhs: Into<Self>, const N: usize, const S: bool> $overflowing_trait<Rhs>
+            for BigInt<N, S>
+        {
+            type Output = Self;
+
+            fn $overflowing(self, rhs: Rhs) -> (Self, bool) {
+                match self.div_rem(rhs) {
+                    Err(DivError::Overflow) => (Self::$wrapped, true),
+                    res => (strict(res).$part, false),
+                }
+            }
+        }
+
+        impl<Rhs: Into<Self>, const N: usize, const S: bool> $wrapping_trait<Rhs> for BigInt<N, S> {
+            type Output = Self;
+
+            fn $wrapping(self, rhs: Rhs) -> Self { self.$overflowing(rhs).0 }
+        }
+    )+};
+}
+
+division_traits! {
+    0 => DivChecked::checked_div, DivOverflowing::overflowing_div, DivWrapping::wrapping_div, MIN;
+    1 => RemChecked::checked_rem, RemOverflowing::overflowing_rem, RemWrapping::wrapping_rem, ZERO;
+}
+
+impl<Rhs: Into<Self>, const N: usize, const S: bool> DivSaturate<Rhs> for BigInt<N, S> {
+    type Output = Self;
+
+    fn saturating_div(self, rhs: Rhs) -> Self {
+        match self.overflowing_div(rhs) {
+            (quot, false) => quot,
+            _ => Self::MAX,
+        }
+    }
+}
+
+impl<const N: usize, const S: bool> NegWrapping for BigInt<N, S> {
+    type Output = Self;
+
+    fn wrapping_neg(self) -> Self { Self(limbs::neg(&self.0)) }
+}
+
+impl<const N: usize> NegChecked for BigInt<N, true> {
+    type Output = Self;
+
+    fn checked_neg(self) -> Option<Self> { (self != Self::MIN).then(|| self.wrapping_neg()) }
+}
+
+impl<const N: usize> NegOverflowing for BigInt<N, true> {
+    type Output = Self;
+
+    fn overflowing_neg(self) -> (Self, bool) { (self.wrapping_neg(), self == Self::MIN) }
+}
+
+impl<const N: usize> NegSaturate for BigInt<N, true> {
+    type Output = Self;
+
+    fn saturating_neg(self) -> Self {
+        if self == Self::MIN {
+            Self::MAX
+        } else {
+            self.wrapping_neg()
+        }
+    }
+}
+
+impl<const N: usize, const S: bool> ShlChecked for BigInt<N, S> {
+    type Output = Self;
+
+    fn checked_shl(self, rhs: u32) -> Option<Self> {
+        (rhs < Self::BITS).then(|| self.unbounded_shl(rhs))
+    }
+}
+
+impl<const N: usize, const S: bool> ShlOverflowing for BigInt<N, S> {
+    type Output = Self;
+
+    fn overflowing_shl(self, rhs: u32) -> (Self, bool) {
+        (self.unbounded_shl(rhs % Self::BITS), rhs >= Self::BITS)
+    }
+}
+
+impl<const N: usize, const S: bool> ShlWrapping for BigInt<N, S> {
+    type Output = Self;
+
+    fn wrapping_shl(self, rhs: u32) -> Self { self.unbounded_shl(rhs % Self::BITS) }
+}
+
+impl<const N: usize, const S: bool> ShrChecked for BigInt<N, S> {
+    type Output = Self;
+
+    fn checked_shr(self, rhs: u32) -> Option<Self> {
+        (rhs < Self::BITS).then(|| self.unbounded_shr(rhs))
+    }
+}
+
+impl<const N: usize, const S: bool> ShrOverflowing for BigInt<N, S> {
+    type Output = Self;
+
+    fn overflowing_shr(self, rhs: u32) -> (Self, bool) {
+        (self.unbounded_shr(rhs % Self::BITS), rhs >= Self::BITS)
+    }
+}
+
+impl<const N: usize, const S: bool> ShrWrapping for BigInt<N, S> {
+    type Output = Self;
+
+    fn wrapping_shr(self, rhs: u32) -> Self { self.unbounded_shr(rhs % Self::BITS) }
+}
+
 impl<const N: usize, const S: bool> FromStr for BigInt<N, S> {
     type Err = ParseIntError;
 
@@ -740,10 +877,7 @@ impl<const N: usize, const S: bool> Not for BigInt<N, S> {
 impl<const N: usize> Neg for BigInt<N, true> {
     type Output = Self;
 
-    fn neg(self) -> Self {
-        assert!(self != Self::MIN, "attempt to negate with overflow");
-        self.wrapping_neg()
-    }
+    fn neg(self) -> Self { self.checked_neg().expect("attempt to negate with overflow") }
 }
 
 impl<const N: usize, const S: bool> Display for BigInt<N, S> {
@@ -966,6 +1100,10 @@ mod tests {
                 assert_eq!(x.unbounded_shr(shift), u(a.unbounded_shr(shift)));
                 assert_eq!(x.checked_shl(shift), a.checked_shl(shift).map(u));
                 assert_eq!(x.checked_shr(shift), a.checked_shr(shift).map(u));
+                assert_eq!(x.overflowing_shl(shift), flagged(u)(a.overflowing_shl(shift)));
+                assert_eq!(x.overflowing_shr(shift), flagged(u)(a.overflowing_shr(shift)));
+                assert_eq!(x.wrapping_shl(shift), u(a.wrapping_shl(shift)));
+                assert_eq!(x.wrapping_shr(shift), u(a.wrapping_shr(shift)));
             }
             assert_same_fmt!(x, a);
             for radix in [2, 3, 8, 10, 16, 36] {
@@ -1054,6 +1192,9 @@ mod tests {
             };
             assert_eq!(x.bits_required(), 129 - sign_bits);
             assert_eq!(!x, i(!a));
+            assert_eq!(x.checked_neg(), a.checked_neg().map(i));
+            assert_eq!(x.overflowing_neg(), flagged(i)(a.overflowing_neg()));
+            assert_eq!(x.saturating_neg(), i(a.saturating_neg()));
             assert_eq!(x.wrapping_neg(), i(a.wrapping_neg()));
             assert_eq!(x.unsigned_abs(), u(a.unsigned_abs()));
             assert_eq!(x.cast_unsigned(), u(a as u128));
@@ -1067,6 +1208,10 @@ mod tests {
                 assert_eq!(x.unbounded_shr(shift), i(a.unbounded_shr(shift)));
                 assert_eq!(x.checked_shl(shift), a.checked_shl(shift).map(i));
                 assert_eq!(x.checked_shr(shift), a.checked_shr(shift).map(i));
+                assert_eq!(x.overflowing_shl(shift), flagged(i)(a.overflowing_shl(shift)));
+                assert_eq!(x.overflowing_shr(shift), flagged(i)(a.overflowing_shr(shift)));
+                assert_eq!(x.wrapping_shl(shift), i(a.wrapping_shl(shift)));
+                assert_eq!(x.wrapping_shr(shift), i(a.wrapping_shr(shift)));
             }
             assert_same_fmt!(x, a);
             for radix in [2, 7, 10, 16, 36] {

@@ -35,8 +35,8 @@
 //!
 //! Unlike the primitive integers, all types of the crate panic on an arithmetic
 //! overflow in both debug and release builds. The cases when an overflow is
-//! possible and legit must use `checked_*`, `overflowing_*`, `saturating_*` or
-//! `wrapping_*` methods.
+//! possible and legit must use the `checked_*`, `overflowing_*`, `saturating_*`
+//! or `wrapping_*` trait methods.
 
 #![cfg_attr(not(test), no_std)]
 

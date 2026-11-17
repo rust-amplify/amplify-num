@@ -2,7 +2,7 @@
 
 use std::hint::black_box;
 
-use amplify_num::{i1024, u1024};
+use amplify_num::{AddOverflowing, DivOverflowing, MulOverflowing, SubOverflowing, i1024, u1024};
 use criterion::{Criterion, criterion_group, criterion_main};
 
 const X: [u64; 16] = [

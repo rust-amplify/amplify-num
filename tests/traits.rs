@@ -7,66 +7,51 @@ use core::num::{
 
 use amplify_num::{
     AddChecked, AddOverflowing, AddSaturate, AddWrapping, BigInt, DivChecked, DivOverflowing,
-    DivWrapping, Integer, MulChecked, MulOverflowing, MulSaturate, MulWrapping, Unsigned,
+    DivSaturate, DivWrapping, Integer, MulChecked, MulOverflowing, MulSaturate, MulWrapping,
     NegChecked, NegOverflowing, NegSaturate, NegWrapping, NonZero, Number, RemChecked,
     RemOverflowing, RemWrapping, ShlChecked, ShlOverflowing, ShlWrapping, ShrChecked,
-    ShrOverflowing, ShrWrapping, SubChecked, SubOverflowing, SubSaturate, SubWrapping, i256, i512,
-    i1024, u1, u2, u3, u4, u5, u6, u7, u10, u12, u14, u20, u24, u40, u48, u56, u256, u512, u1024,
+    ShrOverflowing, ShrWrapping, SubChecked, SubOverflowing, SubSaturate, SubWrapping, Unsigned,
+    i256, i512, i1024, u1, u2, u3, u4, u5, u6, u7, u10, u12, u14, u20, u24, u40, u48, u56, u256,
+    u512, u1024,
 };
 
 fn add_checked<T, Rhs>(lhs: T, rhs: Rhs) -> Option<T>
-where
-    T: AddChecked<Rhs, Output = T>,
-{
+where T: AddChecked<Rhs, Output = T> {
     lhs.checked_add(rhs)
 }
 
 fn add_overflowing<T, Rhs>(lhs: T, rhs: Rhs) -> (T, bool)
-where
-    T: AddOverflowing<Rhs, Output = T>,
-{
+where T: AddOverflowing<Rhs, Output = T> {
     lhs.overflowing_add(rhs)
 }
 
 fn add_saturating<T, Rhs>(lhs: T, rhs: Rhs) -> T
-where
-    T: AddSaturate<Rhs, Output = T>,
-{
+where T: AddSaturate<Rhs, Output = T> {
     lhs.saturating_add(rhs)
 }
 
 fn add_wrapping<T, Rhs>(lhs: T, rhs: Rhs) -> T
-where
-    T: AddWrapping<Rhs, Output = T>,
-{
+where T: AddWrapping<Rhs, Output = T> {
     lhs.wrapping_add(rhs)
 }
 
 fn sub_checked<T, Rhs>(lhs: T, rhs: Rhs) -> Option<T>
-where
-    T: SubChecked<Rhs, Output = T>,
-{
+where T: SubChecked<Rhs, Output = T> {
     lhs.checked_sub(rhs)
 }
 
 fn sub_overflowing<T, Rhs>(lhs: T, rhs: Rhs) -> (T, bool)
-where
-    T: SubOverflowing<Rhs, Output = T>,
-{
+where T: SubOverflowing<Rhs, Output = T> {
     lhs.overflowing_sub(rhs)
 }
 
 fn sub_saturating<T, Rhs>(lhs: T, rhs: Rhs) -> T
-where
-    T: SubSaturate<Rhs, Output = T>,
-{
+where T: SubSaturate<Rhs, Output = T> {
     lhs.saturating_sub(rhs)
 }
 
 fn sub_wrapping<T, Rhs>(lhs: T, rhs: Rhs) -> T
-where
-    T: SubWrapping<Rhs, Output = T>,
-{
+where T: SubWrapping<Rhs, Output = T> {
     lhs.wrapping_sub(rhs)
 }
 
@@ -182,6 +167,41 @@ fn shifts_use_logical_width_for_custom_integers() {
     assert_eq!(<u8 as ShlChecked>::checked_shl(1, 8), None);
     assert_eq!(<u8 as ShlOverflowing>::overflowing_shl(1, 8), (1, true));
     assert_eq!(<u8 as ShlWrapping>::wrapping_shl(1, 8), 1);
+}
+
+#[test]
+fn custom_integer_arithmetic_uses_traits_directly() {
+    let small = u3::with(6);
+    let sum = small.checked_add(1u8).unwrap();
+    assert_eq!(sum, u3::with(7));
+    assert_eq!(small + 1u8, sum);
+    assert_eq!(u3::ONE.wrapping_neg(), u3::MAX);
+    assert!(std::panic::catch_unwind(|| u3::MAX + 1u8).is_err());
+    assert!(std::panic::catch_unwind(|| u3::ONE.wrapping_div(0u8)).is_err());
+    assert!(std::panic::catch_unwind(|| u3::ONE.wrapping_rem(0u8)).is_err());
+
+    let big_signed = BigInt::<1, true>::MAX;
+    assert_eq!(big_signed.overflowing_add(1i8), (BigInt::<1, true>::MIN, true));
+    assert_eq!(u256::ONE.wrapping_neg(), u256::MAX);
+
+    let lhs = BigInt::<1, true>::from(123i64);
+    let rhs = BigInt::<1, true>::from(-7i64);
+    let (model, overflow) = 123i64.overflowing_mul(-7);
+    let (actual, trait_overflow) = lhs.overflowing_mul(rhs);
+    assert_eq!(actual, BigInt::<1, true>::from(model));
+    assert_eq!(trait_overflow, overflow);
+    assert_eq!(lhs.saturating_mul(rhs), lhs.checked_mul(rhs).unwrap());
+    assert_eq!(i256::ONE + 1i8, i256::from(2i8));
+
+    let signed_min = BigInt::<1, true>::MIN;
+    let negative_one = BigInt::<1, true>::from(-1i8);
+    assert_eq!(signed_min.overflowing_div(negative_one), (signed_min, true));
+    assert_eq!(signed_min.saturating_div(negative_one), BigInt::<1, true>::MAX);
+    assert_eq!(signed_min.wrapping_rem(negative_one), BigInt::<1, true>::ZERO);
+    assert_eq!(BigInt::<1, true>::ONE.checked_div(BigInt::ZERO), None);
+    assert!(
+        std::panic::catch_unwind(|| BigInt::<1, true>::ONE.wrapping_div(BigInt::ZERO)).is_err()
+    );
 }
 
 #[test]
