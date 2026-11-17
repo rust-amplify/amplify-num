@@ -22,2151 +22,1644 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
-use crate::error::{DivError, ParseLengthError};
+use core::array;
+use core::cmp::Ordering;
+use core::fmt::{self, Binary, Debug, Display, Formatter, LowerHex, Octal, UpperHex};
+use core::num::IntErrorKind;
+use core::ops::{
+    Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Div, DivAssign,
+    Mul, MulAssign, Neg, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub, SubAssign,
+};
+use core::str::{self, FromStr};
 
-macro_rules! construct_bigint {
-    ($name:ident, $n_words:expr) => {
-        /// Large integer type
-        ///
-        /// The type is composed of little-endian ordered 64-bit words, which represents
-        /// its inner representation.
-        #[allow(non_camel_case_types)]
-        #[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
-        pub struct $name([u64; $n_words]);
+use crate::error::{DivError, ParseIntError, ParseLengthError};
+use crate::limbs;
 
-        impl $name {
-            #[inline]
-            /// Converts the object to a raw pointer
-            pub fn as_ptr(&self) -> *const u64 {
-                let &$name(ref dat) = self;
-                dat.as_ptr()
-            }
+/// Integer of a fixed size, made of `N` 64-bit limbs kept in the little-endian
+/// order.
+///
+/// `SIGNED` integers use the two's complement representation. The type mirrors
+/// the API of the primitive integers, with one deliberate difference: the
+/// arithmetic operators panic on overflow in all build profiles, and never wrap
+/// around silently. The `checked_*`, `overflowing_*`, `saturating_*` and
+/// `wrapping_*` methods give explicit control over the overflow handling.
+///
+/// The type does not allocate and can be used on bare-metal targets.
+///
+/// ```
+/// use amplify_num::{i256, u256};
+///
+/// let x = u256::from(u128::MAX) * 3u8 + 2u8;
+/// assert_eq!(x.to_string(), "1020847100762815390390123822295304634367");
+/// assert_eq!("1020847100762815390390123822295304634367".parse(), Ok(x));
+/// assert_eq!(format!("{x:#x}"), "0x2ffffffffffffffffffffffffffffffff");
+/// assert_eq!(x.div_rem(u128::MAX), Ok((u256::from(3u8), u256::from(2u8))));
+/// assert_eq!(u256::MAX.checked_add(1u8), None);
+/// assert_eq!(i256::MIN.saturating_sub(1), i256::MIN);
+/// assert_eq!(i256::from(-7).rem_euclid(4), i256::from(1));
+/// ```
+///
+/// Operations which can't be performed without a loss are rejected by the
+/// compiler:
+///
+/// ```compile_fail
+/// let _ = -amplify_num::u256::ONE; // unsigned integers can't be negated
+/// ```
+///
+/// ```compile_fail
+/// let _ = amplify_num::BigInt::<1, true>::from(u64::MAX); // 64 bits do not fit 63 bits
+/// ```
+///
+/// A lossy conversion is detected when the code using it is generated, thus
+/// `cargo build` reports it and `cargo check` does not. This matters only for
+/// the custom sizes: the aliases, starting from [`u256`], fit every primitive.
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct BigInt<const N: usize, const SIGNED: bool>([u64; N]);
 
-            #[inline]
-            /// Converts the object to a mutable raw pointer
-            pub fn as_mut_ptr(&mut self) -> *mut u64 {
-                let &mut $name(ref mut dat) = self;
-                dat.as_mut_ptr()
-            }
+/// 256-bit unsigned integer.
+#[expect(non_camel_case_types)]
+pub type u256 = BigInt<4, false>;
 
-            #[inline]
-            /// Returns the underlying array of words constituting large integer
-            pub const fn as_inner(&self) -> &[u64; $n_words] { &self.0 }
+/// 512-bit unsigned integer.
+#[expect(non_camel_case_types)]
+pub type u512 = BigInt<8, false>;
 
-            #[inline]
-            /// Returns the underlying array of words constituting large integer
-            pub const fn into_inner(self) -> [u64; $n_words] { self.0 }
+/// 1024-bit unsigned integer.
+#[expect(non_camel_case_types)]
+pub type u1024 = BigInt<16, false>;
 
-            #[inline]
-            /// Constructs integer type from the underlying array of words.
-            pub const fn from_inner(array: [u64; $n_words]) -> Self { Self(array) }
+/// 256-bit signed integer.
+#[expect(non_camel_case_types)]
+pub type i256 = BigInt<4, true>;
+
+/// 512-bit signed integer.
+#[expect(non_camel_case_types)]
+pub type i512 = BigInt<8, true>;
+
+/// 1024-bit signed integer.
+#[expect(non_camel_case_types)]
+pub type i1024 = BigInt<16, true>;
+
+/// Implements the checked, wrapping and saturating flavors of an overflowing
+/// operation. The last argument tells whether the operation saturates at the
+/// minimal value.
+macro_rules! arithmetics {
+    ($($op:literal: $overflowing:ident => $checked:ident, $wrapping:ident, $saturating:ident,
+       |$lhs:ident, $rhs:ident| $min:expr;)+) => {$(
+        #[doc = concat!("Checked ", $op, ". Returns `None` if an overflow has happened.")]
+        pub fn $checked(self, rhs: impl Into<Self>) -> Option<Self> {
+            let (res, overflow) = self.$overflowing(rhs);
+            (!overflow).then_some(res)
         }
 
-        impl $name {
-            /// Zero value
-            pub const ZERO: $name = $name([0u64; $n_words]);
+        #[doc = concat!("Wrapping (modular) ", $op, ".")]
+        pub fn $wrapping(self, rhs: impl Into<Self>) -> Self { self.$overflowing(rhs).0 }
 
-            /// Value for `1`
-            pub const ONE: $name = $name({
-                let mut one = [0u64; $n_words];
-                one[0] = 1u64;
-                one
-            });
-
-            /// Bit dimension
-            pub const BITS: u32 = $n_words * 64;
-
-            /// Length of the integer in bytes
-            pub const BYTES: u8 = $n_words * 8;
-
-            /// Length of the inner representation in 64-bit words
-            pub const INNER_LEN: u8 = $n_words;
-
-            /// Returns whether specific bit number is set to `1` or not
-            #[inline]
-            pub const fn bit(&self, index: usize) -> bool {
-                let &$name(ref arr) = self;
-                arr[index / 64] & (1 << (index % 64)) != 0
+        #[doc = concat!("Saturating ", $op, ". Returns the closest bound of the type if an ")]
+        #[doc = "overflow has happened."]
+        pub fn $saturating(self, rhs: impl Into<Self>) -> Self {
+            let ($lhs, $rhs) = (self, rhs.into());
+            match $lhs.$overflowing($rhs) {
+                (res, false) => res,
+                _ if $min => Self::MIN,
+                _ => Self::MAX,
             }
+        }
+    )+};
+}
 
-            /// Returns lower 32 bits of the number as `u32`
-            #[inline]
-            pub const fn low_u32(&self) -> u32 {
-                let &$name(ref arr) = self;
-                (arr[0] & u32::MAX as u64) as u32
-            }
+/// Implements the checked, overflowing and wrapping flavors of one of the
+/// results of a combined division. The last argument is the value returned on
+/// the overflow.
+macro_rules! divisions {
+    ($($op:literal: $div_rem:ident.$part:tt => $checked:ident, $overflowing:ident,
+       $wrapping:ident, $wrapped:ident;)+) => {$(
+        #[doc = concat!("Checked ", $op, ". Returns `None` if `rhs` is zero or an overflow ")]
+        #[doc = "has happened."]
+        pub fn $checked(self, rhs: impl Into<Self>) -> Option<Self> {
+            self.$div_rem(rhs).ok().map(|res| res.$part)
+        }
 
-            /// Returns lower 64 bits of the number as `u32`
-            #[inline]
-            pub const fn low_u64(&self) -> u64 {
-                let &$name(ref arr) = self;
-                arr[0] as u64
-            }
-
-            /// Returns the number of leading ones in the binary representation of
-            /// `self`.
-            #[inline]
-            pub fn leading_ones(&self) -> u32 {
-                for i in 0..$n_words {
-                    let leading_ones = (!self[$n_words - i - 1]).leading_zeros();
-                    if leading_ones != 64 {
-                        return 64 * i as u32 + leading_ones;
-                    }
-                }
-                64 * $n_words
-            }
-
-            /// Returns the number of leading zeros in the binary representation of
-            /// `self`.
-            #[inline]
-            pub fn leading_zeros(&self) -> u32 {
-                for i in 0..$n_words {
-                    let leading_zeros = self[$n_words - i - 1].leading_zeros();
-                    if leading_zeros != 64 {
-                        return 64 * i as u32 + leading_zeros;
-                    }
-                }
-                64 * $n_words
-            }
-
-            /// Returns the number of trailing ones in the binary representation of
-            /// `self`.
-            #[inline]
-            pub fn trailing_ones(&self) -> u32 {
-                for i in 0..$n_words {
-                    let trailing_ones = (!self[i]).trailing_zeros();
-                    if trailing_ones != 64 {
-                        return 64 * i as u32 + trailing_ones;
-                    }
-                }
-                64 * $n_words
-            }
-
-            /// Returns the number of trailing zeros in the binary representation of
-            /// `self`.
-            #[inline]
-            pub fn trailing_zeros(&self) -> u32 {
-                for i in 0..$n_words {
-                    let trailing_zeros = self[i].trailing_zeros();
-                    if trailing_zeros != 64 {
-                        return 64 * i as u32 + trailing_zeros;
-                    }
-                }
-                64 * $n_words
-            }
-
-            #[inline]
-            pub fn is_zero(&self) -> bool { self[..] == [0; $n_words] }
-
-            #[inline]
-            pub fn is_positive(&self) -> bool { !self.is_negative() && !self.is_zero() }
-
-            #[inline]
-            pub fn abs(self) -> $name {
-                if !self.is_negative() {
-                    return self;
-                }
-                (!self).wrapping_add($name::ONE)
-            }
-
-            /// Creates the integer value from a byte array using big-endian
-            /// encoding
-            pub fn from_be_bytes(bytes: [u8; $n_words * 8]) -> $name {
-                Self::_from_be_slice(&bytes)
-            }
-
-            /// Creates the integer value from a byte slice using big-endian
-            /// encoding
-            pub fn from_be_slice(bytes: &[u8]) -> Result<$name, ParseLengthError> {
-                if bytes.len() != $n_words * 8 {
-                    Err(ParseLengthError {
-                        actual: bytes.len(),
-                        expected: $n_words * 8,
-                    })
-                } else {
-                    Ok(Self::_from_be_slice(bytes))
-                }
-            }
-
-            /// Creates the integer value from a byte array using little-endian
-            /// encoding
-            pub fn from_le_bytes(bytes: [u8; $n_words * 8]) -> $name {
-                Self::_from_le_slice(&bytes)
-            }
-
-            /// Creates the integer value from a byte slice using little-endian
-            /// encoding
-            pub fn from_le_slice(bytes: &[u8]) -> Result<$name, ParseLengthError> {
-                if bytes.len() != $n_words * 8 {
-                    Err(ParseLengthError {
-                        actual: bytes.len(),
-                        expected: $n_words * 8,
-                    })
-                } else {
-                    Ok(Self::_from_le_slice(bytes))
-                }
-            }
-
-            fn _from_be_slice(bytes: &[u8]) -> $name {
-                let mut slice = [0u64; $n_words];
-                slice
-                    .iter_mut()
-                    .rev()
-                    .zip(bytes.chunks(8).into_iter().map(|s| {
-                        let mut b = [0u8; 8];
-                        b.copy_from_slice(s);
-                        b
-                    }))
-                    .for_each(|(word, bytes)| *word = u64::from_be_bytes(bytes));
-                $name(slice)
-            }
-
-            fn _from_le_slice(bytes: &[u8]) -> $name {
-                let mut slice = [0u64; $n_words];
-                slice
-                    .iter_mut()
-                    .zip(bytes.chunks(8).into_iter().map(|s| {
-                        let mut b = [0u8; 8];
-                        b.copy_from_slice(s);
-                        b
-                    }))
-                    .for_each(|(word, bytes)| *word = u64::from_le_bytes(bytes));
-                $name(slice)
-            }
-
-            /// Convert the integer into a byte array using big-endian encoding
-            pub fn to_be_bytes(self) -> [u8; $n_words * 8] {
-                let mut res = [0; $n_words * 8];
-                for i in 0..$n_words {
-                    let start = i * 8;
-                    res[start..start + 8]
-                        .copy_from_slice(&self.0[$n_words - (i + 1)].to_be_bytes());
-                }
-                res
-            }
-
-            /// Convert a integer into a byte array using little-endian encoding
-            pub fn to_le_bytes(self) -> [u8; $n_words * 8] {
-                let mut res = [0; $n_words * 8];
-                for i in 0..$n_words {
-                    let start = i * 8;
-                    res[start..start + 8].copy_from_slice(&self.0[i].to_le_bytes());
-                }
-                res
-            }
-
-            // divmod like operation, returns (quotient, remainder)
-            #[inline]
-            fn div_rem(self, other: Self) -> Result<(Self, Self), DivError> {
-                // Check for division by 0
-                if other.is_zero() {
-                    return Err(DivError::ZeroDiv);
-                }
-                if other.is_negative() && self == Self::MIN && other == Self::ONE.wrapping_neg() {
-                    return Err(DivError::Overflow);
-                }
-                let mut me = self.abs();
-                let mut you = other.abs();
-                let mut ret = [0u64; $n_words];
-                if self.is_negative() == other.is_negative() && me < you {
-                    return Ok(($name(ret), self));
-                }
-
-                let shift = me.bits_required() - you.bits_required();
-                you <<= shift;
-                for i in (0..=shift).rev() {
-                    if me >= you {
-                        ret[i / 64] |= 1 << (i % 64);
-                        me -= you;
-                    }
-                    you >>= 1;
-                }
-
-                Ok((
-                    if self.is_negative() == other.is_negative() {
-                        Self(ret)
-                    } else {
-                        -Self(ret)
-                    },
-                    if self.is_negative() { -me } else { me },
-                ))
-            }
-
-            #[inline]
-            fn div_rem_euclid(self, other: Self) -> Result<(Self, Self), DivError> {
-                self.div_rem(other).map(|(q, r)| {
-                    (
-                        match (r.is_negative(), other.is_positive()) {
-                            (true, true) => q.wrapping_sub(Self::ONE),
-                            (true, false) => q.wrapping_add(Self::ONE),
-                            _ => q,
-                        },
-                        match (r.is_negative(), other.is_positive()) {
-                            (true, true) => r.wrapping_add(other),
-                            (true, false) => r.wrapping_sub(other),
-                            _ => r,
-                        },
-                    )
-                })
+        #[doc = concat!("Overflowing ", $op, ". Returns the wrapped result and whether an ")]
+        #[doc = "overflow has happened.\n\n# Panics\n\nIf `rhs` is zero."]
+        pub fn $overflowing(self, rhs: impl Into<Self>) -> (Self, bool) {
+            match self.$div_rem(rhs) {
+                Err(DivError::Overflow) => (Self::$wrapped, true),
+                res => (strict(res).$part, false),
             }
         }
 
-        impl From<bool> for $name {
-            fn from(init: bool) -> $name {
-                let mut ret = [0; $n_words];
-                if init {
-                    ret[0] = 1;
-                }
-                $name(ret)
+        #[doc = concat!("Wrapping (modular) ", $op, ".\n\n# Panics\n\nIf `rhs` is zero.")]
+        pub fn $wrapping(self, rhs: impl Into<Self>) -> Self { self.$overflowing(rhs).0 }
+    )+};
+}
+
+/// Extracts the result of a division, panicking on an error like the primitive
+/// integers do.
+fn strict<T>(res: Result<T, DivError>) -> T {
+    res.unwrap_or_else(|err| panic!("attempt to perform {err}"))
+}
+
+impl<const N: usize, const S: bool> BigInt<N, S> {
+    /// Size of the integer in bits.
+    pub const BITS: u32 = 64 * N as u32;
+
+    /// Size of the integer in bytes.
+    pub const BYTES: usize = 8 * N;
+
+    /// Zero.
+    pub const ZERO: Self = Self::from_inner([0; N]);
+
+    /// One.
+    pub const ONE: Self = {
+        let mut limbs = [0; N];
+        limbs[0] = 1;
+        Self(limbs)
+    };
+
+    /// The smallest value of the type.
+    pub const MIN: Self = {
+        let mut limbs = [0; N];
+        if S {
+            limbs[N - 1] = 1 << 63;
+        }
+        Self(limbs)
+    };
+
+    /// The largest value of the type.
+    pub const MAX: Self = {
+        let mut limbs = [u64::MAX; N];
+        if S {
+            limbs[N - 1] >>= 1;
+        }
+        Self(limbs)
+    };
+
+    /// Constructs the integer from its limbs, given in the little-endian order.
+    pub const fn from_inner(limbs: [u64; N]) -> Self {
+        const { assert!(N > 0, "a big integer must have at least one limb") };
+        Self(limbs)
+    }
+
+    /// Returns the limbs of the integer in the little-endian order.
+    pub const fn as_inner(&self) -> &[u64; N] { &self.0 }
+
+    /// Converts the integer into its limbs in the little-endian order.
+    pub const fn into_inner(self) -> [u64; N] { self.0 }
+
+    /// Constructs the integer from its 128 least significant bits, replicating
+    /// `fill` into the limbs above them.
+    fn from_low(low: u128, fill: u64) -> Self {
+        Self::from_inner(array::from_fn(|i| match i {
+            0 => low as u64,
+            1 => (low >> 64) as u64,
+            _ => fill,
+        }))
+    }
+
+    /// Creates the integer from a slice of [`Self::BYTES`] bytes in the
+    /// big-endian order.
+    pub fn from_be_slice(bytes: &[u8]) -> Result<Self, ParseLengthError> {
+        Self::chunks(bytes).map(Self::from_be_chunks)
+    }
+
+    /// Creates the integer from a slice of [`Self::BYTES`] bytes in the
+    /// little-endian order.
+    pub fn from_le_slice(bytes: &[u8]) -> Result<Self, ParseLengthError> {
+        Self::chunks(bytes).map(Self::from_le_chunks)
+    }
+
+    /// Splits a byte slice into the limb-sized chunks.
+    fn chunks(bytes: &[u8]) -> Result<&[[u8; 8]; N], ParseLengthError> {
+        let err = ParseLengthError {
+            actual: bytes.len(),
+            expected: Self::BYTES,
+        };
+        match bytes.as_chunks() {
+            (chunks, []) => chunks.try_into().map_err(|_| err),
+            _ => Err(err),
+        }
+    }
+
+    fn from_be_chunks(chunks: &[[u8; 8]; N]) -> Self {
+        Self::from_inner(array::from_fn(|i| u64::from_be_bytes(chunks[N - 1 - i])))
+    }
+
+    fn from_le_chunks(chunks: &[[u8; 8]; N]) -> Self {
+        Self::from_inner(chunks.map(u64::from_le_bytes))
+    }
+
+    fn to_be_chunks(self) -> [[u8; 8]; N] { array::from_fn(|i| self.0[N - 1 - i].to_be_bytes()) }
+
+    fn to_le_chunks(self) -> [[u8; 8]; N] { self.0.map(u64::to_le_bytes) }
+
+    /// Returns whether the bit `index`, counted from the least significant one,
+    /// is set.
+    ///
+    /// # Panics
+    ///
+    /// If `index` is not less than [`Self::BITS`].
+    pub const fn bit(&self, index: u32) -> bool {
+        self.0[(index / 64) as usize] >> (index % 64) & 1 == 1
+    }
+
+    /// Returns the 32 least significant bits of the number.
+    pub const fn low_u32(&self) -> u32 { self.0[0] as u32 }
+
+    /// Returns the 64 least significant bits of the number.
+    pub const fn low_u64(&self) -> u64 { self.0[0] }
+
+    /// Returns `true` if the number is zero.
+    pub fn is_zero(&self) -> bool { self.0 == [0; N] }
+
+    /// Returns `true` if the number is negative, which is never the case for
+    /// the unsigned integers.
+    pub const fn is_negative(&self) -> bool { S && self.0[N - 1] >> 63 == 1 }
+
+    /// Returns `true` if the number is greater than zero.
+    pub fn is_positive(&self) -> bool { !self.is_negative() && !self.is_zero() }
+
+    /// Returns the number of leading zeros in the binary representation of the
+    /// number.
+    pub fn leading_zeros(&self) -> u32 {
+        let mut zeros = 0;
+        for limb in self.0.iter().rev() {
+            zeros += limb.leading_zeros();
+            if *limb != 0 {
+                break;
             }
         }
+        zeros
+    }
 
-        impl From<u8> for $name {
-            fn from(init: u8) -> $name {
-                let mut ret = [0; $n_words];
-                ret[0] = init as u64;
-                $name(ret)
+    /// Returns the number of trailing zeros in the binary representation of the
+    /// number.
+    pub fn trailing_zeros(&self) -> u32 {
+        let mut zeros = 0;
+        for limb in &self.0 {
+            zeros += limb.trailing_zeros();
+            if *limb != 0 {
+                break;
             }
         }
+        zeros
+    }
 
-        impl From<u16> for $name {
-            fn from(init: u16) -> $name {
-                let mut ret = [0; $n_words];
-                ret[0] = init as u64;
-                $name(ret)
+    /// Returns the number of leading ones in the binary representation of the
+    /// number.
+    pub fn leading_ones(&self) -> u32 { (!*self).leading_zeros() }
+
+    /// Returns the number of trailing ones in the binary representation of the
+    /// number.
+    pub fn trailing_ones(&self) -> u32 { (!*self).trailing_zeros() }
+
+    /// Returns the least number of bits needed to represent the number, which
+    /// for the signed integers includes the sign bit.
+    pub fn bits_required(&self) -> u32 {
+        match (S, self.is_negative()) {
+            (false, _) => Self::BITS - self.leading_zeros(),
+            (true, false) => Self::BITS + 1 - self.leading_zeros(),
+            (true, true) => Self::BITS + 1 - self.leading_ones(),
+        }
+    }
+
+    /// Limbs of the absolute value of the number.
+    fn magnitude(&self) -> [u64; N] {
+        if self.is_negative() {
+            limbs::neg(&self.0)
+        } else {
+            self.0
+        }
+    }
+
+    /// Negates the number when `negate` is set, wrapping around at the minimal
+    /// value.
+    fn negated_if(self, negate: bool) -> Self { if negate { self.wrapping_neg() } else { self } }
+
+    /// Wrapping (modular) negation. The only signed value which wraps around is
+    /// [`Self::MIN`], while among the unsigned values only zero does not.
+    pub fn wrapping_neg(self) -> Self { Self(limbs::neg(&self.0)) }
+
+    /// Calculates `self + rhs`. Returns the wrapped sum and whether an overflow
+    /// has happened.
+    pub fn overflowing_add(self, rhs: impl Into<Self>) -> (Self, bool) {
+        let (mut sum, rhs) = (self, rhs.into());
+        let carry = limbs::add(&mut sum.0, &rhs.0);
+        // A signed sum overflows when the operands share the sign which the sum
+        // lacks.
+        let wrapped =
+            self.is_negative() == rhs.is_negative() && self.is_negative() != sum.is_negative();
+        (sum, if S { wrapped } else { carry })
+    }
+
+    /// Calculates `self - rhs`. Returns the wrapped difference and whether an
+    /// overflow has happened.
+    pub fn overflowing_sub(self, rhs: impl Into<Self>) -> (Self, bool) {
+        let (mut diff, rhs) = (self, rhs.into());
+        let borrow = limbs::sub(&mut diff.0, &rhs.0);
+        // A signed difference overflows when the operands differ in sign and
+        // the result has the sign of the subtrahend.
+        let wrapped =
+            self.is_negative() != rhs.is_negative() && self.is_negative() != diff.is_negative();
+        (diff, if S { wrapped } else { borrow })
+    }
+
+    /// Calculates `self * rhs`. Returns the wrapped product and whether an
+    /// overflow has happened.
+    pub fn overflowing_mul(self, rhs: impl Into<Self>) -> (Self, bool) {
+        let rhs = rhs.into();
+        let negative = self.is_negative() != rhs.is_negative();
+        let (magnitude, overflow) = limbs::mul(&self.magnitude(), &rhs.magnitude());
+        let product = Self(magnitude).negated_if(negative);
+        // A magnitude which fits the limbs still overflows a signed type if it
+        // turns the sign of the product into the opposite of the expected one.
+        (product, overflow || (!product.is_zero() && product.is_negative() != negative))
+    }
+
+    arithmetics! {
+        "addition": overflowing_add => checked_add, wrapping_add, saturating_add,
+            |lhs, _rhs| lhs.is_negative();
+        "subtraction": overflowing_sub => checked_sub, wrapping_sub, saturating_sub,
+            |lhs, _rhs| !S || lhs.is_negative();
+        "multiplication": overflowing_mul => checked_mul, wrapping_mul, saturating_mul,
+            |lhs, rhs| lhs.is_negative() != rhs.is_negative();
+    }
+
+    /// Calculates the quotient and the remainder of the division of `self` by
+    /// `rhs`, with the quotient rounded towards zero and the remainder having
+    /// the sign of `self`.
+    pub fn div_rem(self, rhs: impl Into<Self>) -> Result<(Self, Self), DivError> {
+        let rhs = rhs.into();
+        if rhs.is_zero() {
+            return Err(DivError::ZeroDiv);
+        }
+        let (quot, rem) = limbs::div_rem(&self.magnitude(), &rhs.magnitude());
+        let quot = Self(quot).negated_if(self.is_negative() != rhs.is_negative());
+        // The only overflow is `MIN / -1`: a positive quotient which reads as a
+        // negative one.
+        if quot.is_negative() && self.is_negative() == rhs.is_negative() {
+            return Err(DivError::Overflow);
+        }
+        Ok((quot, Self(rem).negated_if(self.is_negative())))
+    }
+
+    /// Calculates the quotient and the remainder of the Euclidean division of
+    /// `self` by `rhs`, where the remainder is never negative.
+    pub fn div_rem_euclid(self, rhs: impl Into<Self>) -> Result<(Self, Self), DivError> {
+        let rhs = rhs.into();
+        let (quot, rem) = self.div_rem(rhs)?;
+        // A negative remainder is less than the divisor by the absolute value,
+        // thus neither of the corrections can overflow.
+        Ok(match (rem.is_negative(), rhs.is_negative()) {
+            (false, _) => (quot, rem),
+            (true, false) => (quot.wrapping_sub(Self::ONE), rem.wrapping_add(rhs)),
+            (true, true) => (quot.wrapping_add(Self::ONE), rem.wrapping_sub(rhs)),
+        })
+    }
+
+    divisions! {
+        "division": div_rem.0 => checked_div, overflowing_div, wrapping_div, MIN;
+        "remainder": div_rem.1 => checked_rem, overflowing_rem, wrapping_rem, ZERO;
+        "Euclidean division": div_rem_euclid.0 =>
+            checked_div_euclid, overflowing_div_euclid, wrapping_div_euclid, MIN;
+        "Euclidean remainder": div_rem_euclid.1 =>
+            checked_rem_euclid, overflowing_rem_euclid, wrapping_rem_euclid, ZERO;
+    }
+
+    /// Saturating division. Returns [`Self::MAX`] if an overflow has happened.
+    ///
+    /// # Panics
+    ///
+    /// If `rhs` is zero.
+    pub fn saturating_div(self, rhs: impl Into<Self>) -> Self {
+        match self.overflowing_div(rhs) {
+            (quot, false) => quot,
+            _ => Self::MAX,
+        }
+    }
+
+    /// Calculates the quotient of the Euclidean division of `self` by `rhs`.
+    ///
+    /// # Panics
+    ///
+    /// If `rhs` is zero or the division overflows.
+    pub fn div_euclid(self, rhs: impl Into<Self>) -> Self { strict(self.div_rem_euclid(rhs)).0 }
+
+    /// Calculates the non-negative remainder of the Euclidean division of
+    /// `self` by `rhs`.
+    ///
+    /// # Panics
+    ///
+    /// If `rhs` is zero or the division overflows.
+    pub fn rem_euclid(self, rhs: impl Into<Self>) -> Self { strict(self.div_rem_euclid(rhs)).1 }
+
+    /// Shifts the number left by `rhs` bits. Unlike the `<<` operator accepts
+    /// any shift, with the shifts by [`Self::BITS`] and more giving zero.
+    pub fn unbounded_shl(self, rhs: u32) -> Self { Self(limbs::shl(&self.0, rhs)) }
+
+    /// Shifts the number right by `rhs` bits, preserving the sign of the signed
+    /// integers. Unlike the `>>` operator accepts any shift, with the shifts by
+    /// [`Self::BITS`] and more giving `-1` for the negative numbers and zero
+    /// for the rest.
+    pub fn unbounded_shr(self, rhs: u32) -> Self {
+        Self(limbs::shr(&self.0, rhs, if self.is_negative() { u64::MAX } else { 0 }))
+    }
+
+    /// Checked shift left. Returns `None` if `rhs` is not less than
+    /// [`Self::BITS`].
+    pub fn checked_shl(self, rhs: u32) -> Option<Self> {
+        (rhs < Self::BITS).then(|| self.unbounded_shl(rhs))
+    }
+
+    /// Checked shift right. Returns `None` if `rhs` is not less than
+    /// [`Self::BITS`].
+    pub fn checked_shr(self, rhs: u32) -> Option<Self> {
+        (rhs < Self::BITS).then(|| self.unbounded_shr(rhs))
+    }
+
+    /// Parses the integer from a string of digits in the given `radix`,
+    /// optionally preceded by a `+` sign or, for the signed integers, by a `-`
+    /// sign.
+    ///
+    /// # Panics
+    ///
+    /// If `radix` is not in the range from 2 to 36.
+    pub fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError> {
+        assert!((2..=36).contains(&radix), "radix must lie in the range `2..=36`");
+        let (negative, digits) = match src.as_bytes() {
+            [] => return Err(ParseIntError(IntErrorKind::Empty)),
+            [b'+' | b'-'] => return Err(ParseIntError(IntErrorKind::InvalidDigit)),
+            [b'+', digits @ ..] => (false, digits),
+            [b'-', digits @ ..] if S => (true, digits),
+            digits => (false, digits),
+        };
+        let overflow = if negative {
+            IntErrorKind::NegOverflow
+        } else {
+            IntErrorKind::PosOverflow
+        };
+
+        let mut limbs = [0; N];
+        for &byte in digits {
+            let digit = char::from(byte)
+                .to_digit(radix)
+                .ok_or(ParseIntError(IntErrorKind::InvalidDigit))?;
+            if limbs::mul_add_limb(&mut limbs, radix.into(), digit.into()) != 0 {
+                return Err(ParseIntError(overflow));
             }
         }
+        let res = Self::from_inner(limbs).negated_if(negative);
+        // The magnitude fits the limbs, but a signed number must also keep its
+        // sign.
+        if !res.is_zero() && res.is_negative() != negative {
+            return Err(ParseIntError(overflow));
+        }
+        Ok(res)
+    }
 
-        impl From<u32> for $name {
-            fn from(init: u32) -> $name {
-                let mut ret = [0; $n_words];
-                ret[0] = init as u64;
-                $name(ret)
+    /// Writes the number in a radix which is a power of two, with each digit
+    /// taking `bits` bits. `W` must be the number of the digits in a limb.
+    fn fmt_radix<const W: usize>(
+        &self,
+        f: &mut Formatter<'_>,
+        bits: u32,
+        digits: &[u8; 16],
+        prefix: &str,
+    ) -> fmt::Result {
+        let mut buf = [[0; W]; N];
+        let buf = buf.as_flattened_mut();
+        let len = (Self::BITS - self.leading_zeros()).div_ceil(bits).max(1) as usize;
+        for (i, digit) in buf[..len].iter_mut().rev().enumerate() {
+            let (limb, offset) = (i * bits as usize / 64, (i * bits as usize % 64) as u32);
+            // A digit may cross the limb boundary and take its high bits from
+            // the next limb.
+            let next = self
+                .0
+                .get(limb + 1)
+                .map_or(0, |next| next.unbounded_shl(64 - offset));
+            *digit = digits[((self.0[limb] >> offset | next) % (1 << bits)) as usize];
+        }
+        f.pad_integral(true, prefix, str::from_utf8(&buf[..len]).map_err(|_| fmt::Error)?)
+    }
+}
+
+impl<const N: usize> BigInt<N, false> {
+    /// Reinterprets the bits of the number as a signed integer of the same
+    /// size.
+    pub const fn cast_signed(self) -> BigInt<N, true> { BigInt(self.0) }
+}
+
+impl<const N: usize> BigInt<N, true> {
+    /// Reinterprets the bits of the number as an unsigned integer of the same
+    /// size.
+    pub const fn cast_unsigned(self) -> BigInt<N, false> { BigInt(self.0) }
+
+    /// Returns the absolute value of the number as an unsigned integer, which
+    /// can't overflow.
+    pub fn unsigned_abs(self) -> BigInt<N, false> { BigInt(self.magnitude()) }
+
+    /// Returns the absolute value of the number.
+    ///
+    /// # Panics
+    ///
+    /// If the number is [`Self::MIN`], which has no positive counterpart.
+    pub fn abs(self) -> Self { if self.is_negative() { -self } else { self } }
+}
+
+/// Implements the array-based byte conversions, which can't be generic over the
+/// number of limbs until the const generic expressions are stabilized.
+macro_rules! byte_arrays {
+    ($($limbs:literal)+) => {$(
+        impl<const S: bool> BigInt<$limbs, S> {
+            /// Creates the integer from its byte representation in the big-endian order.
+            pub fn from_be_bytes(bytes: [u8; 8 * $limbs]) -> Self {
+                let (chunks, _) = bytes.as_chunks();
+                Self::from_inner(array::from_fn(|i| u64::from_be_bytes(chunks[$limbs - 1 - i])))
+            }
+
+            /// Creates the integer from its byte representation in the little-endian order.
+            pub fn from_le_bytes(bytes: [u8; 8 * $limbs]) -> Self {
+                let (chunks, _) = bytes.as_chunks();
+                Self::from_inner(array::from_fn(|i| u64::from_le_bytes(chunks[i])))
+            }
+
+            /// Returns the byte representation of the integer in the big-endian order.
+            pub fn to_be_bytes(self) -> [u8; 8 * $limbs] {
+                let mut bytes = [0; 8 * $limbs];
+                bytes.copy_from_slice(self.to_be_chunks().as_flattened());
+                bytes
+            }
+
+            /// Returns the byte representation of the integer in the little-endian order.
+            pub fn to_le_bytes(self) -> [u8; 8 * $limbs] {
+                let mut bytes = [0; 8 * $limbs];
+                bytes.copy_from_slice(self.to_le_chunks().as_flattened());
+                bytes
             }
         }
+    )+};
+}
+byte_arrays!(4 8 16);
 
-        impl From<u64> for $name {
-            fn from(init: u64) -> $name {
-                let mut ret = [0; $n_words];
-                ret[0] = init;
-                $name(ret)
+impl<const N: usize, const S: bool> Default for BigInt<N, S> {
+    fn default() -> Self { Self::ZERO }
+}
+
+impl<const N: usize, const S: bool> From<bool> for BigInt<N, S> {
+    fn from(value: bool) -> Self { Self::from_low(value.into(), 0) }
+}
+
+macro_rules! from_unsigned {
+    ($($prim:ident)+) => {$(
+        impl<const N: usize, const S: bool> From<$prim> for BigInt<N, S> {
+            fn from(value: $prim) -> Self {
+                const { assert!($prim::BITS + S as u32 <= Self::BITS, "lossy conversion") };
+                Self::from_low(value.into(), 0)
             }
         }
+    )+};
+}
+from_unsigned!(u8 u16 u32 u64 u128);
 
-        impl From<u128> for $name {
-            fn from(init: u128) -> $name {
-                let mut ret = [0; $n_words * 8];
-                for (pos, byte) in init.to_le_bytes().iter().enumerate() {
-                    ret[pos] = *byte;
-                }
-                $name::from_le_bytes(ret)
+macro_rules! from_signed {
+    ($($prim:ident)+) => {$(
+        impl<const N: usize> From<$prim> for BigInt<N, true> {
+            fn from(value: $prim) -> Self {
+                const { assert!($prim::BITS <= Self::BITS, "lossy conversion") };
+                let fill = if value < 0 { u64::MAX } else { 0 };
+                Self::from_low(i128::from(value).cast_unsigned(), fill)
             }
         }
+    )+};
+}
+from_signed!(i8 i16 i32 i64 i128);
 
-        impl<'a> ::core::convert::TryFrom<&'a [u64]> for $name {
-            type Error = $crate::error::ParseLengthError;
-            fn try_from(data: &'a [u64]) -> Result<$name, Self::Error> {
-                if data.len() != $n_words {
-                    Err($crate::error::ParseLengthError {
-                        actual: data.len(),
-                        expected: $n_words,
-                    })
-                } else {
-                    let mut bytes = [0u64; $n_words];
-                    bytes.copy_from_slice(data);
-                    Ok(Self::from_inner(bytes))
-                }
+macro_rules! from_smaller {
+    ($($from:literal => $to:literal),+) => {$(
+        impl<const S: bool> From<BigInt<$from, S>> for BigInt<$to, S> {
+            fn from(value: BigInt<$from, S>) -> Self {
+                const { assert!($from < $to, "lossy conversion") };
+                let fill = if value.is_negative() { u64::MAX } else { 0 };
+                Self(array::from_fn(|i| value.0.get(i).copied().unwrap_or(fill)))
             }
         }
-        impl ::core::ops::Index<usize> for $name {
-            type Output = u64;
+    )+};
+}
+from_smaller!(4 => 8, 4 => 16, 8 => 16);
 
-            #[inline]
-            fn index(&self, index: usize) -> &u64 { &self.0[index] }
-        }
+impl<const N: usize, const S: bool> FromStr for BigInt<N, S> {
+    type Err = ParseIntError;
 
-        impl ::core::ops::Index<::core::ops::Range<usize>> for $name {
-            type Output = [u64];
+    fn from_str(s: &str) -> Result<Self, ParseIntError> { Self::from_str_radix(s, 10) }
+}
 
-            #[inline]
-            fn index(&self, index: ::core::ops::Range<usize>) -> &[u64] { &self.0[index] }
-        }
+impl<const N: usize, const S: bool> Ord for BigInt<N, S> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Numbers of the same sign are ordered as the unsigned ones, starting
+        // from the most significant limb.
+        other
+            .is_negative()
+            .cmp(&self.is_negative())
+            .then_with(|| self.0.iter().rev().cmp(other.0.iter().rev()))
+    }
+}
 
-        impl ::core::ops::Index<::core::ops::RangeTo<usize>> for $name {
-            type Output = [u64];
+impl<const N: usize, const S: bool> PartialOrd for BigInt<N, S> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
 
-            #[inline]
-            fn index(&self, index: ::core::ops::RangeTo<usize>) -> &[u64] { &self.0[index] }
-        }
-
-        impl ::core::ops::Index<::core::ops::RangeFrom<usize>> for $name {
-            type Output = [u64];
-
-            #[inline]
-            fn index(&self, index: ::core::ops::RangeFrom<usize>) -> &[u64] { &self.0[index] }
-        }
-
-        impl ::core::ops::Index<::core::ops::RangeFull> for $name {
-            type Output = [u64];
-
-            #[inline]
-            fn index(&self, _: ::core::ops::RangeFull) -> &[u64] { &self.0[..] }
-        }
-
-        impl PartialOrd for $name {
-            #[inline]
-            fn partial_cmp(&self, other: &$name) -> Option<::core::cmp::Ordering> {
-                Some(self.cmp(&other))
-            }
-        }
-
-        impl Ord for $name {
-            #[inline]
-            fn cmp(&self, other: &$name) -> ::core::cmp::Ordering {
-                // We need to manually implement ordering because the words in our array
-                // are in little-endian order, i.e. the most significant word is last in
-                // the array, and the auto derive for array Ord compares the elements
-                // from first to last.
-                for i in 0..$n_words {
-                    let self_word = self[$n_words - 1 - i];
-                    let other_word = other[$n_words - 1 - i];
-
-                    // If this is a signed type, start with signed comparison on the
-                    // most-significant word, then continue with unsigned comparisons on
-                    // the rest of the words.
-                    let res = if i == 0 && Self::IS_SIGNED_TYPE {
-                        (self_word as i64).cmp(&(other_word as i64))
-                    } else {
-                        self_word.cmp(&other_word)
-                    };
-
-                    if res != ::core::cmp::Ordering::Equal {
-                        return res;
-                    }
-                }
-                ::core::cmp::Ordering::Equal
-            }
-        }
-
-        impl ::core::ops::Neg for $name {
+/// Implements a binary operator, together with its assigning form, for any
+/// right-hand operand convertible into the big integer.
+macro_rules! operators {
+    ($($op:ident $fn:ident $op_assign:ident $fn_assign:ident =>
+       |$lhs:ident, $rhs:ident| $res:expr;)+) => {$(
+        impl<T: Into<Self>, const N: usize, const S: bool> $op<T> for BigInt<N, S> {
             type Output = Self;
-            fn neg(self) -> Self::Output {
-                assert!(
-                    $name::MIN != $name([u64::MAX; $n_words]),
-                    "attempt to negate unsigned number"
-                );
-                assert!(
-                    self != $name::MIN,
-                    "attempt to negate the minimum value, which would overflow"
-                );
-                (!self).wrapping_add($name::ONE)
+
+            fn $fn(self, rhs: T) -> Self {
+                let ($lhs, $rhs) = (self, rhs.into());
+                $res
             }
         }
 
-        impl $name {
-            /// Checked integer addition. Computes `self + rhs`, returning `None` if
-            /// overflow occurred.
-            pub fn checked_add<T>(self, other: T) -> Option<$name>
-            where T: Into<$name> {
-                let (res, flag) = self.overflowing_add(other);
-                if flag { None } else { Some(res) }
-            }
-
-            /// Saturating integer addition. Computes `self + rhs`, saturating at the
-            /// numeric bounds instead of overflowing.
-            pub fn saturating_add<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                let (res, flag) = self.overflowing_add(other);
-                if flag { Self::MAX } else { res }
-            }
-
-            /// Calculates `self + rhs`
-            ///
-            /// Returns a tuple of the addition along with a boolean indicating whether
-            /// an arithmetic overflow would occur. If an overflow would have occurred
-            /// then the wrapped value is returned.
-            pub fn overflowing_add<T>(self, other: T) -> ($name, bool)
-            where T: Into<$name> {
-                let $name(ref me) = self;
-                let other = other.into();
-                let $name(ref you) = other;
-                let mut ret = [0u64; $n_words];
-                let mut carry = 0u64;
-                for i in 0..$n_words {
-                    let (res, flag) = me[i].overflowing_add(carry);
-                    carry = flag as u64;
-                    let (res, flag) = res.overflowing_add(you[i]);
-                    carry += flag as u64;
-                    ret[i] = res;
-                }
-                let ret = Self(ret);
-                let overflow = if !Self::IS_SIGNED_TYPE {
-                    carry > 0
-                } else {
-                    self != Self::MIN &&
-                        other != Self::MIN &&
-                        (self.is_negative() == other.is_negative()) &&
-                        (self.is_negative() != ret.is_negative())
-                };
-                (ret, overflow)
-            }
-
-            /// Wrapping (modular) addition. Computes `self + rhs`, wrapping around at
-            /// the boundary of the type.
-            pub fn wrapping_add<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.overflowing_add(other).0
-            }
-
-            /// Checked integer subtraction. Computes `self - rhs`, returning `None` if
-            /// overflow occurred.
-            pub fn checked_sub<T>(self, other: T) -> Option<$name>
-            where T: Into<$name> {
-                let (res, flag) = self.overflowing_sub(other);
-                if flag { None } else { Some(res) }
-            }
-
-            /// Saturating integer subtraction. Computes `self - rhs`, saturating at the
-            /// numeric bounds instead of overflowing.
-            pub fn saturating_sub<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                let (res, flag) = self.overflowing_sub(other);
-                if flag { Self::MAX } else { res }
-            }
-
-            /// Calculates `self - rhs`
-            ///
-            /// Returns a tuple of the subtraction along with a boolean indicating
-            /// whether an arithmetic overflow would occur. If an overflow would
-            /// have occurred then the wrapped value is returned.
-            pub fn overflowing_sub<T>(self, other: T) -> ($name, bool)
-            where T: Into<$name> {
-                let other = other.into();
-                if !Self::IS_SIGNED_TYPE {
-                    (self.wrapping_add(!other).wrapping_add($name::ONE), self < other)
-                } else {
-                    self.overflowing_add((!other).wrapping_add($name::ONE))
-                }
-            }
-
-            /// Wrapping (modular) subtraction. Computes `self - rhs`, wrapping around
-            /// at the boundary of the type.
-            pub fn wrapping_sub<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.overflowing_sub(other).0
-            }
-
-            /// Checked integer multiplication. Computes `self * rhs`, returning `None`
-            /// if overflow occurred.
-            pub fn checked_mul<T>(self, other: T) -> Option<$name>
-            where T: Into<$name> {
-                let (res, flag) = self.overflowing_mul(other);
-                if flag { None } else { Some(res) }
-            }
-
-            /// Saturating integer multiplication. Computes `self * rhs`, saturating at
-            /// the numeric bounds instead of overflowing.
-            pub fn saturating_mul<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                let (res, flag) = self.overflowing_mul(other);
-                if flag { Self::MAX } else { res }
-            }
-
-            /// Wrapping (modular) multiplication. Computes `self * rhs`, wrapping
-            /// around at the boundary of the type.
-            pub fn wrapping_mul<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.overflowing_mul(other).0
-            }
-
-            /// Calculates `self / rhs`
-            ///
-            /// Returns a tuple of the divisor along with a boolean indicating
-            /// whether an arithmetic overflow would occur. If an overflow would
-            /// have occurred then the wrapped value is returned.
-            pub fn overflowing_div<T>(self, other: T) -> ($name, bool)
-            where T: Into<$name> {
-                let rhs = other.into();
-                match self.div_rem(rhs) {
-                    Err(DivError::Overflow) => (Self::MIN, true),
-                    res => (res.expect("Error occurred during bigint division").0, false),
-                }
-            }
-
-            /// Wrapping (modular) division. Calculates `self / rhs`,
-            /// wrapping around at the boundary of the type.
-            ///
-            /// The only case where such wrapping can occur is when one divides
-            /// `MIN / -1` on a signed type (where MIN is the negative minimal value for
-            /// the type); this is equivalent to -MIN, a positive value that is
-            /// too large to represent in the type.
-            /// In such a case, this function returns MIN itself.
-            pub fn wrapping_div<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.overflowing_div(other.into()).0
-            }
-
-            /// Checked integer division. Computes `self / rhs`,
-            /// returning None if `rhs == 0` or the division results in overflow.
-            pub fn checked_div<T>(self, other: T) -> Option<$name>
-            where T: Into<$name> {
-                self.div_rem(other.into()).ok().map(|(q, _)| q)
-            }
-
-            /// Saturating integer division. Computes `self / rhs`,
-            /// saturating at the numeric bounds instead of overflowing.
-            pub fn saturating_div<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                let rhs = other.into();
-                match self.div_rem(rhs) {
-                    Err(DivError::Overflow) => Self::MAX,
-                    res => res.expect("Error occurred during bigint division").0,
-                }
-            }
-
-            /// Calculates the remainder when `self` is divided by `rhs`.
-            ///
-            /// Returns a tuple of the remainder after dividing along with a boolean
-            /// indicating whether an arithmetic overflow would occur.
-            /// If an overflow would occur then 0 is returned.
-            pub fn overflowing_rem<T>(self, other: T) -> ($name, bool)
-            where T: Into<$name> {
-                let rhs = other.into();
-                match self.div_rem(rhs) {
-                    Err(DivError::Overflow) => (Self::ZERO, true),
-                    res => (res.expect("Error occurred during bigint division").1, false),
-                }
-            }
-
-            /// Wrapping (modular) remainder.
-            /// Computes self % rhs, wrapping around at the boundary of the type.
-            ///
-            /// Such wrap-around never actually occurs mathematically;
-            /// implementation artifacts make x % y invalid for MIN / -1
-            /// on a signed type (where MIN is the negative minimal value).
-            /// In such a case, this function returns 0.
-            pub fn wrapping_rem<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.overflowing_rem(other.into()).0
-            }
-
-            /// Checked integer remainder. Computes `self % rhs`,
-            /// returning None if `rhs == 0` or the division results in overflow.
-            pub fn checked_rem<T>(self, other: T) -> Option<$name>
-            where T: Into<$name> {
-                self.div_rem(other.into()).ok().map(|(_, r)| r)
-            }
-
-            /// Calculates the quotient of Euclidean division of `self` by `rhs`.
-            ///
-            /// This computes the integer `q` such that `self = q * rhs + r`,
-            /// with `r = self.rem_euclid(rhs)` and `0 <= r < abs(rhs)`.
-            ///
-            /// In other words, the result is `self / rhs` rounded to the integer `q`
-            /// such that `self >= q * rhs`. If `self > 0`,
-            /// this is equal to round towards zero (the default in Rust);
-            /// if `self < 0`, this is equal to round towards +/- infinity.
-            pub fn div_euclid<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.div_rem_euclid(other.into())
-                    .expect("Error occurred during bigint division")
-                    .0
-            }
-
-            /// Calculates the quotient of Euclidean division `self.div_euclid(rhs)`.
-            ///
-            /// Returns a tuple of the divisor along with a boolean indicating
-            /// whether an arithmetic overflow would occur.
-            /// If an overflow would occur then `self` is returned.
-            pub fn overflowing_div_euclid<T>(self, other: T) -> ($name, bool)
-            where T: Into<$name> {
-                match self.div_rem_euclid(other.into()) {
-                    Err(DivError::Overflow) => (Self::MIN, true),
-                    res => (res.expect("Error occurred during bigint division").0, false),
-                }
-            }
-
-            /// Wrapping Euclidean division. Computes `self.div_euclid(rhs)`,
-            /// wrapping around at the boundary of the type.
-            ///
-            /// Wrapping will only occur in `MIN / -1` on a signed type
-            /// (where MIN is the negative minimal value for the type).
-            /// This is equivalent to `-MIN`, a positive value
-            /// that is too large to represent in the type.
-            /// In this case, this method returns `MIN` itself.
-            pub fn wrapping_div_euclid<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.overflowing_div_euclid(other.into()).0
-            }
-
-            /// Checked Euclidean division. Computes `self.div_euclid(rhs)`,
-            /// returning None if `rhs == 0` or the division results in overflow.
-            pub fn checked_div_euclid<T>(self, other: T) -> Option<$name>
-            where T: Into<$name> {
-                self.div_rem_euclid(other.into()).ok().map(|(q, _)| q)
-            }
-
-            /// Calculates the least nonnegative remainder of `self (mod rhs)`.
-            ///
-            /// This is done as if by the Euclidean division algorithm –
-            /// given `r = self.rem_euclid(rhs)`, `self = rhs * self.div_euclid(rhs) +
-            /// r`, and `0 <= r < abs(rhs)`.
-            pub fn rem_euclid<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.div_rem_euclid(other.into())
-                    .expect("Error occurred during bigint division")
-                    .1
-            }
-
-            /// Overflowing Euclidean remainder. Calculates `self.rem_euclid(rhs)`.
-            ///
-            /// Returns a tuple of the remainder after dividing along with a boolean
-            /// indicating whether an arithmetic overflow would occur.
-            /// If an overflow would occur then 0 is returned.
-            pub fn overflowing_rem_euclid<T>(self, other: T) -> ($name, bool)
-            where T: Into<$name> {
-                match self.div_rem_euclid(other.into()) {
-                    Err(DivError::Overflow) => (Self::ZERO, true),
-                    res => (res.expect("Error occurred during bigint division").1, false),
-                }
-            }
-
-            /// Wrapping Euclidean remainder. Computes `self.rem_euclid(rhs)`,
-            /// wrapping around at the boundary of the type.
-            ///
-            /// Wrapping will only occur in `MIN % -1` on a signed type
-            /// (where `MIN` is the negative minimal value for the type).
-            /// In this case, this method returns 0.
-            pub fn wrapping_rem_euclid<T>(self, other: T) -> $name
-            where T: Into<$name> {
-                self.overflowing_rem_euclid(other.into()).0
-            }
-
-            /// Checked Euclidean remainder. Computes `self.rem_euclid(rhs)`,
-            /// returning None if `rhs == 0` or the division results in overflow.
-            pub fn checked_rem_euclid<T>(self, other: T) -> Option<$name>
-            where T: Into<$name> {
-                self.div_rem_euclid(other.into()).ok().map(|(_, r)| r)
-            }
-
-            /// Checked shift left. Computes self << rhs,
-            /// returning None if rhs is larger than or equal to the number of bits in
-            /// self.
-            pub fn checked_shl(self, rhs: u32) -> Option<$name> {
-                match rhs < Self::BITS {
-                    true => Some(self << (rhs as usize)),
-                    false => None,
-                }
-            }
-
-            /// Checked shift right. Computes self >> rhs,
-            /// returning None if rhs is larger than or equal to the number of bits in
-            /// self.
-            pub fn checked_shr(self, rhs: u32) -> Option<$name> {
-                match rhs < Self::BITS {
-                    true => Some(self >> (rhs as usize)),
-                    false => None,
-                }
-            }
-
-            /// Wrapping (modular) negation. Computes -self,
-            /// wrapping around at the boundary of the type.
-            /// Since unsigned types do not have negative equivalents
-            /// all applications of this function will wrap (except for -0).
-            /// For values smaller than the corresponding signed type's maximum
-            /// the result is the same as casting the corresponding signed value.
-            /// Any larger values are equivalent to MAX + 1 - (val - MAX - 1)
-            /// where MAX is the corresponding signed type's maximum.
-            pub fn wrapping_neg(self) -> $name { (!self).wrapping_add(Self::ONE) }
+        impl<T: Into<Self>, const N: usize, const S: bool> $op_assign<T> for BigInt<N, S> {
+            fn $fn_assign(&mut self, rhs: T) { *self = $op::$fn(*self, rhs) }
         }
-
-        impl<T> ::core::ops::Add<T> for $name
-        where T: Into<$name>
-        {
-            type Output = $name;
-
-            fn add(self, other: T) -> $name {
-                let (res, flag) = self.overflowing_add(other);
-                assert!(!flag, "attempt to add with overflow");
-                res
-            }
-        }
-        impl<T> ::core::ops::AddAssign<T> for $name
-        where T: Into<$name>
-        {
-            #[inline]
-            fn add_assign(&mut self, rhs: T) { self.0 = (*self + rhs).0 }
-        }
-
-        impl<T> ::core::ops::Sub<T> for $name
-        where T: Into<$name>
-        {
-            type Output = $name;
-
-            #[inline]
-            fn sub(self, other: T) -> $name {
-                let (res, flag) = self.overflowing_sub(other);
-                assert!(!flag, "attempt to subtract with overflow");
-                res
-            }
-        }
-        impl<T> ::core::ops::SubAssign<T> for $name
-        where T: Into<$name>
-        {
-            #[inline]
-            fn sub_assign(&mut self, rhs: T) { self.0 = (*self - rhs).0 }
-        }
-
-        impl<T> ::core::ops::Mul<T> for $name
-        where T: Into<$name>
-        {
-            type Output = $name;
-
-            fn mul(self, other: T) -> $name {
-                let (res, flag) = self.overflowing_mul(other);
-                assert!(!flag, "attempt to mul with overflow");
-                res
-            }
-        }
-        impl<T> ::core::ops::MulAssign<T> for $name
-        where T: Into<$name>
-        {
-            #[inline]
-            fn mul_assign(&mut self, rhs: T) { self.0 = (*self * rhs).0 }
-        }
-
-        impl<T> ::core::ops::Div<T> for $name
-        where T: Into<$name>
-        {
-            type Output = $name;
-
-            fn div(self, other: T) -> $name {
-                self.div_rem(other.into())
-                    .expect("Error occurred during bigint division")
-                    .0
-            }
-        }
-        impl<T> ::core::ops::DivAssign<T> for $name
-        where T: Into<$name>
-        {
-            #[inline]
-            fn div_assign(&mut self, rhs: T) { self.0 = (*self / rhs).0 }
-        }
-
-        impl<T> ::core::ops::Rem<T> for $name
-        where T: Into<$name>
-        {
-            type Output = $name;
-
-            fn rem(self, other: T) -> $name {
-                self.div_rem(other.into())
-                    .expect("Error occurred during bigint division")
-                    .1
-            }
-        }
-        impl<T> ::core::ops::RemAssign<T> for $name
-        where T: Into<$name>
-        {
-            #[inline]
-            fn rem_assign(&mut self, rhs: T) { self.0 = (*self % rhs).0 }
-        }
-
-        impl<T> ::core::ops::BitAnd<T> for $name
-        where T: Into<$name>
-        {
-            type Output = $name;
-
-            #[inline]
-            fn bitand(self, other: T) -> $name {
-                let $name(ref arr1) = self;
-                let $name(ref arr2) = other.into();
-                let mut ret = [0u64; $n_words];
-                for i in 0..$n_words {
-                    ret[i] = arr1[i] & arr2[i];
-                }
-                $name(ret)
-            }
-        }
-        impl<T> ::core::ops::BitAndAssign<T> for $name
-        where T: Into<$name>
-        {
-            #[inline]
-            fn bitand_assign(&mut self, rhs: T) { self.0 = (*self & rhs).0 }
-        }
-
-        impl<T> ::core::ops::BitXor<T> for $name
-        where T: Into<$name>
-        {
-            type Output = $name;
-
-            #[inline]
-            fn bitxor(self, other: T) -> $name {
-                let $name(ref arr1) = self;
-                let $name(ref arr2) = other.into();
-                let mut ret = [0u64; $n_words];
-                for i in 0..$n_words {
-                    ret[i] = arr1[i] ^ arr2[i];
-                }
-                $name(ret)
-            }
-        }
-        impl<T> ::core::ops::BitXorAssign<T> for $name
-        where T: Into<$name>
-        {
-            #[inline]
-            fn bitxor_assign(&mut self, rhs: T) { self.0 = (*self ^ rhs).0 }
-        }
-
-        impl<T> ::core::ops::BitOr<T> for $name
-        where T: Into<$name>
-        {
-            type Output = $name;
-
-            #[inline]
-            fn bitor(self, other: T) -> $name {
-                let $name(ref arr1) = self;
-                let $name(ref arr2) = other.into();
-                let mut ret = [0u64; $n_words];
-                for i in 0..$n_words {
-                    ret[i] = arr1[i] | arr2[i];
-                }
-                $name(ret)
-            }
-        }
-        impl<T> ::core::ops::BitOrAssign<T> for $name
-        where T: Into<$name>
-        {
-            #[inline]
-            fn bitor_assign(&mut self, rhs: T) { self.0 = (*self | rhs).0 }
-        }
-
-        impl ::core::ops::Shl<usize> for $name {
-            type Output = $name;
-
-            fn shl(self, shift: usize) -> $name {
-                let $name(ref original) = self;
-                let mut ret = [0u64; $n_words];
-                let word_shift = shift / 64;
-                let bit_shift = shift % 64;
-                for i in 0..$n_words {
-                    // Shift
-                    if bit_shift < 64 && i + word_shift < $n_words {
-                        ret[i + word_shift] += original[i] << bit_shift;
-                    }
-                    // Carry
-                    if bit_shift > 0 && i + word_shift + 1 < $n_words {
-                        ret[i + word_shift + 1] += original[i] >> (64 - bit_shift);
-                    }
-                }
-                $name(ret)
-            }
-        }
-        impl ::core::ops::ShlAssign<usize> for $name {
-            #[inline]
-            fn shl_assign(&mut self, rhs: usize) { self.0 = (*self << rhs).0 }
-        }
-
-        impl ::core::ops::Shr<usize> for $name {
-            type Output = $name;
-
-            fn shr(self, shift: usize) -> $name {
-                let $name(ref original) = self;
-                let mut ret = [0u64; $n_words];
-                let word_shift = shift / 64;
-                let bit_shift = shift % 64;
-                for i in word_shift..$n_words {
-                    // Shift
-                    ret[i - word_shift] += original[i] >> bit_shift;
-                    // Carry
-                    if bit_shift > 0 && i < $n_words - 1 {
-                        ret[i - word_shift] += original[i + 1] << (64 - bit_shift);
-                    }
-                }
-                if self.is_negative() {
-                    ret[$n_words - 1] |= 0x8000_0000_0000_0000
-                }
-                $name(ret)
-            }
-        }
-
-        impl ::core::ops::ShrAssign<usize> for $name {
-            #[inline]
-            fn shr_assign(&mut self, rhs: usize) { self.0 = (*self >> rhs).0 }
-        }
-
-        impl ::core::ops::Not for $name {
-            type Output = $name;
-
-            #[inline]
-            fn not(self) -> $name {
-                let $name(ref arr) = self;
-                let mut ret = [0u64; $n_words];
-                for i in 0..$n_words {
-                    ret[i] = !arr[i];
-                }
-                $name(ret)
-            }
-        }
-
-        impl ::core::fmt::Debug for $name {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                let &$name(ref data) = self;
-                write!(f, "0x")?;
-                for ch in data.iter().rev() {
-                    write!(f, "{:016x}", ch)?;
-                }
-                Ok(())
-            }
-        }
-
-        impl ::core::fmt::Display for $name {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                ::core::fmt::Debug::fmt(self, f)
-            }
-        }
-
-        #[cfg(feature = "alloc")]
-        impl ::core::fmt::UpperHex for $name {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> Result<(), ::core::fmt::Error> {
-                use alloc::format;
-                use alloc::string::String;
-
-                let mut hex = String::new();
-                for chunk in self.0.iter().rev().skip_while(|x| **x == 0) {
-                    if hex.is_empty() {
-                        hex.push_str(&format!("{:X}", chunk));
-                    } else {
-                        hex.push_str(&format!("{:0>16X}", chunk));
-                    }
-                }
-                if hex.is_empty() {
-                    hex.push_str("0");
-                }
-
-                let mut prefix = if f.alternate() {
-                    String::from("0x")
-                } else {
-                    String::new()
-                };
-                if let Some(width) = f.width() {
-                    if f.sign_aware_zero_pad() {
-                        let missing_width =
-                            width.saturating_sub(prefix.len()).saturating_sub(hex.len());
-                        prefix.push_str(&"0".repeat(missing_width));
-                    }
-                }
-
-                prefix.push_str(&hex);
-                f.pad(&prefix)
-            }
-        }
-
-        #[cfg(feature = "alloc")]
-        impl ::core::fmt::LowerHex for $name {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> Result<(), ::core::fmt::Error> {
-                use alloc::format;
-                use alloc::string::String;
-
-                let mut hex = String::new();
-                for chunk in self.0.iter().rev().skip_while(|x| **x == 0) {
-                    if hex.is_empty() {
-                        hex.push_str(&format!("{:x}", chunk));
-                    } else {
-                        hex.push_str(&format!("{:0>16x}", chunk));
-                    }
-                }
-                if hex.is_empty() {
-                    hex.push_str("0");
-                }
-
-                let mut prefix = if f.alternate() {
-                    String::from("0x")
-                } else {
-                    String::new()
-                };
-                if let Some(width) = f.width() {
-                    if f.sign_aware_zero_pad() {
-                        let missing_width =
-                            width.saturating_sub(prefix.len()).saturating_sub(hex.len());
-                        prefix.push_str(&"0".repeat(missing_width));
-                    }
-                }
-
-                prefix.push_str(&hex);
-                f.pad(&prefix)
-            }
-        }
-
-        #[cfg(feature = "alloc")]
-        impl ::core::fmt::Octal for $name {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> Result<(), ::core::fmt::Error> {
-                use alloc::format;
-                use alloc::string::String;
-
-                let mut octal = String::new();
-                for chunk in self.0.iter().rev().skip_while(|x| **x == 0) {
-                    if octal.is_empty() {
-                        octal.push_str(&format!("{:o}", chunk));
-                    } else {
-                        octal.push_str(&format!("{:0>22o}", chunk));
-                    }
-                }
-                if octal.is_empty() {
-                    octal.push_str("0");
-                }
-
-                let mut prefix = if f.alternate() {
-                    String::from("0o")
-                } else {
-                    String::new()
-                };
-                if let Some(width) = f.width() {
-                    if f.sign_aware_zero_pad() {
-                        let missing_width = width
-                            .saturating_sub(prefix.len())
-                            .saturating_sub(octal.len());
-                        prefix.push_str(&"0".repeat(missing_width));
-                    }
-                }
-
-                prefix.push_str(&octal);
-                f.pad(&prefix)
-            }
-        }
-
-        #[cfg(feature = "alloc")]
-        impl ::core::fmt::Binary for $name {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> Result<(), ::core::fmt::Error> {
-                use alloc::format;
-                use alloc::string::String;
-
-                let mut binary = String::new();
-                for chunk in self.0.iter().rev().skip_while(|x| **x == 0) {
-                    if binary.is_empty() {
-                        binary.push_str(&format!("{:b}", chunk));
-                    } else {
-                        binary.push_str(&format!("{:0>64b}", chunk));
-                    }
-                }
-                if binary.is_empty() {
-                    binary.push_str("0");
-                }
-
-                let mut prefix = if f.alternate() {
-                    String::from("0b")
-                } else {
-                    String::new()
-                };
-                if let Some(width) = f.width() {
-                    if f.sign_aware_zero_pad() {
-                        let missing_width = width
-                            .saturating_sub(prefix.len())
-                            .saturating_sub(binary.len());
-                        prefix.push_str(&"0".repeat(missing_width));
-                    }
-                }
-
-                prefix.push_str(&binary);
-                f.pad(&prefix)
-            }
-        }
-
-        #[cfg(feature = "serde")]
-        impl $crate::serde::Serialize for $name {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where S: $crate::serde::Serializer {
-                use $crate::hex::ToHex;
-                let bytes = self.to_be_bytes();
-                if serializer.is_human_readable() {
-                    serializer.serialize_str(&bytes.to_hex())
-                } else {
-                    serializer.serialize_bytes(&bytes)
-                }
-            }
-        }
-
-        #[cfg(feature = "serde")]
-        impl<'de> $crate::serde::Deserialize<'de> for $name {
-            fn deserialize<D: $crate::serde::Deserializer<'de>>(
-                deserializer: D,
-            ) -> Result<Self, D::Error> {
-                use ::std::fmt;
-                use $crate::hex::FromHex;
-                use $crate::serde::de;
-                struct Visitor;
-                impl<'de> de::Visitor<'de> for Visitor {
-                    type Value = $name;
-
-                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                        write!(
-                            f,
-                            "{} bytes or a hex string with {} characters",
-                            $n_words * 8,
-                            $n_words * 8 * 2
-                        )
-                    }
-
-                    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-                    where E: de::Error {
-                        let bytes = Vec::from_hex(s)
-                            .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(s), &self))?;
-                        $name::from_be_slice(&bytes)
-                            .map_err(|_| de::Error::invalid_length(bytes.len() * 2, &self))
-                    }
-
-                    fn visit_bytes<E>(self, bytes: &[u8]) -> Result<Self::Value, E>
-                    where E: de::Error {
-                        $name::from_be_slice(bytes)
-                            .map_err(|_| de::Error::invalid_length(bytes.len(), &self))
-                    }
-                }
-
-                if deserializer.is_human_readable() {
-                    deserializer.deserialize_str(Visitor)
-                } else {
-                    deserializer.deserialize_bytes(Visitor)
-                }
-            }
-        }
-    };
+    )+};
 }
 
-macro_rules! construct_signed_bigint_methods {
-    ($name:ident, $n_words:expr) => {
-        impl From<i8> for $name {
-            fn from(init: i8) -> $name {
-                let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
-                for i in 0..bytes.len() {
-                    ret[i] = bytes[i]
-                }
-                $name::from_le_bytes(ret)
-            }
-        }
-
-        impl From<i16> for $name {
-            fn from(init: i16) -> $name {
-                let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
-                for i in 0..bytes.len() {
-                    ret[i] = bytes[i]
-                }
-                $name::from_le_bytes(ret)
-            }
-        }
-
-        impl From<i32> for $name {
-            fn from(init: i32) -> $name {
-                let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
-                for i in 0..bytes.len() {
-                    ret[i] = bytes[i]
-                }
-                $name::from_le_bytes(ret)
-            }
-        }
-
-        impl From<i64> for $name {
-            fn from(init: i64) -> $name {
-                let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
-                for i in 0..bytes.len() {
-                    ret[i] = bytes[i]
-                }
-                $name::from_le_bytes(ret)
-            }
-        }
-
-        impl From<i128> for $name {
-            fn from(init: i128) -> $name {
-                let bytes = init.to_le_bytes();
-                let mut ret = [if init.is_negative() { u8::MAX } else { 0 }; $n_words * 8];
-                for i in 0..bytes.len() {
-                    ret[i] = bytes[i]
-                }
-                $name::from_le_bytes(ret)
-            }
-        }
-
-        impl $name {
-            const IS_SIGNED_TYPE: bool = true;
-
-            /// Minimum value
-            pub const MIN: $name = {
-                let mut min = [0u64; $n_words];
-                min[$n_words - 1] = 0x8000_0000_0000_0000;
-                $name(min)
-            };
-
-            /// Maximum value
-            pub const MAX: $name = {
-                let mut max = [u64::MAX; $n_words];
-                max[$n_words - 1] = u64::MAX >> 1;
-                $name(max)
-            };
-
-            #[inline]
-            pub fn is_negative(&self) -> bool {
-                self[($name::INNER_LEN - 1) as usize] & 0x8000_0000_0000_0000 != 0
-            }
-
-            /// Return the least number of bits needed to represent the number
-            #[inline]
-            pub fn bits_required(&self) -> usize {
-                let &$name(ref arr) = self;
-                let iter = arr.iter().rev().take($n_words - 1);
-                if self.is_negative() {
-                    let ctr = iter.take_while(|&&b| b == u64::MAX).count();
-                    (0x40 * ($n_words - ctr)) + 1 -
-                        (!arr[$n_words - ctr - 1]).leading_zeros() as usize
-                } else {
-                    let ctr = iter.take_while(|&&b| b == u64::MIN).count();
-                    (0x40 * ($n_words - ctr)) + 1 - arr[$n_words - ctr - 1].leading_zeros() as usize
-                }
-            }
-
-            /// Calculates `self * rhs`
-            ///
-            /// Returns a tuple of the multiplication along with a boolean indicating
-            /// whether an arithmetic overflow would occur. If an overflow would
-            /// have occurred then the wrapped value is returned.
-            pub fn overflowing_mul<T>(self, other: T) -> ($name, bool)
-            where T: Into<$name> {
-                let sub = if self != $name::MIN { -self } else { self };
-                let mut p_high = $name::ZERO;
-                let mut p_low = other.into();
-                let mut prev = false;
-                for _i in 0..$name::BITS {
-                    let p_low_trailing_bit = (p_low[0] & 1) != 0;
-                    p_high = match (p_low_trailing_bit, prev) {
-                        (false, true) => p_high.wrapping_add(self),
-                        (true, false) => p_high.wrapping_add(sub),
-                        _ => p_high,
-                    };
-                    prev = p_low_trailing_bit;
-                    p_low >>= 1;
-                    p_low = match p_high[0] & 1 {
-                        0 => p_low & $name::MAX,
-                        _ => p_low | $name::MIN,
-                    };
-                    p_high >>= 1;
-                }
-                let negative_overflow =
-                    p_low.is_negative() && p_high != $name([u64::MAX; $n_words]);
-                let positive_overflow = !p_low.is_negative() && p_high != $name::ZERO;
-                (p_low, negative_overflow || positive_overflow)
-            }
-        }
-    };
+operators! {
+    Add add AddAssign add_assign =>
+        |lhs, rhs| lhs.checked_add(rhs).expect("attempt to add with overflow");
+    Sub sub SubAssign sub_assign =>
+        |lhs, rhs| lhs.checked_sub(rhs).expect("attempt to subtract with overflow");
+    Mul mul MulAssign mul_assign =>
+        |lhs, rhs| lhs.checked_mul(rhs).expect("attempt to multiply with overflow");
+    Div div DivAssign div_assign => |lhs, rhs| strict(lhs.div_rem(rhs)).0;
+    Rem rem RemAssign rem_assign => |lhs, rhs| strict(lhs.div_rem(rhs)).1;
+    BitAnd bitand BitAndAssign bitand_assign =>
+        |lhs, rhs| Self(array::from_fn(|i| lhs.0[i] & rhs.0[i]));
+    BitOr bitor BitOrAssign bitor_assign =>
+        |lhs, rhs| Self(array::from_fn(|i| lhs.0[i] | rhs.0[i]));
+    BitXor bitxor BitXorAssign bitxor_assign =>
+        |lhs, rhs| Self(array::from_fn(|i| lhs.0[i] ^ rhs.0[i]));
 }
 
-macro_rules! construct_unsigned_bigint_methods {
-    ($name:ident, $n_words:expr) => {
-        impl $name {
-            const IS_SIGNED_TYPE: bool = false;
+impl<const N: usize, const S: bool> Shl<u32> for BigInt<N, S> {
+    type Output = Self;
 
-            /// Minimum value
-            pub const MIN: $name = $name([0u64; $n_words]);
-
-            /// Maximum value
-            pub const MAX: $name = $name([u64::MAX; $n_words]);
-
-            #[inline]
-            pub const fn is_negative(&self) -> bool { false }
-
-            /// Return the least number of bits needed to represent the number
-            #[inline]
-            pub fn bits_required(&self) -> usize {
-                let &$name(ref arr) = self;
-                let iter = arr.iter().rev().take($n_words - 1);
-                let ctr = iter.take_while(|&&b| b == u64::MIN).count();
-                (0x40 * ($n_words - ctr)) - arr[$n_words - ctr - 1].leading_zeros() as usize
-            }
-
-            /// Calculates `self * rhs`
-            ///
-            /// Returns a tuple of the multiplication along with a boolean indicating
-            /// whether an arithmetic overflow would occur. If an overflow would
-            /// have occurred then the wrapped value is returned.
-            pub fn overflowing_mul<T>(self, other: T) -> ($name, bool)
-            where T: Into<$name> {
-                let $name(ref me) = self;
-                let $name(ref you) = other.into();
-                let mut ret = [0u64; $n_words];
-                let mut overflow = false;
-                for i in 0..$n_words {
-                    let mut carry = 0u64;
-                    for j in 0..$n_words {
-                        if i + j >= $n_words {
-                            if me[i] > 0 && you[j] > 0 {
-                                overflow = true
-                            }
-                            continue;
-                        }
-                        let prev_carry = carry;
-                        let res = me[i] as u128 * you[j] as u128;
-                        carry = (res >> 64) as u64;
-                        let mul = (res & u64::MAX as u128) as u64;
-                        let (res, flag) = ret[i + j].overflowing_add(mul);
-                        carry += flag as u64;
-                        ret[i + j] = res;
-                        let (res, flag) = ret[i + j].overflowing_add(prev_carry);
-                        carry += flag as u64;
-                        ret[i + j] = res;
-                    }
-                    if carry > 0 {
-                        overflow = true
-                    }
-                }
-                (Self(ret), overflow)
-            }
-        }
-    };
+    fn shl(self, rhs: u32) -> Self {
+        self.checked_shl(rhs)
+            .expect("attempt to shift left with overflow")
+    }
 }
 
-macro_rules! impl_from {
-    ($from:ident, $n_words_from:expr, $to:ident, $n_words_to:expr) => {
-        impl From<$from> for $to {
-            fn from(init: $from) -> $to {
-                let mut ret = [0u64; $n_words_to];
-                for i in 0..$n_words_from {
-                    ret[i] = init.0[i]
-                }
-                $to(ret)
-            }
-        }
-    };
+impl<const N: usize, const S: bool> ShlAssign<u32> for BigInt<N, S> {
+    fn shl_assign(&mut self, rhs: u32) { *self = *self << rhs }
 }
 
-construct_bigint!(i256, 4);
-construct_bigint!(i512, 8);
-construct_bigint!(i1024, 16);
-construct_bigint!(u256, 4);
-construct_bigint!(u512, 8);
-construct_bigint!(u1024, 16);
+impl<const N: usize, const S: bool> Shr<u32> for BigInt<N, S> {
+    type Output = Self;
 
-construct_unsigned_bigint_methods!(u256, 4);
-construct_unsigned_bigint_methods!(u512, 8);
-construct_unsigned_bigint_methods!(u1024, 16);
-construct_signed_bigint_methods!(i256, 4);
-construct_signed_bigint_methods!(i512, 8);
-construct_signed_bigint_methods!(i1024, 16);
+    fn shr(self, rhs: u32) -> Self {
+        self.checked_shr(rhs)
+            .expect("attempt to shift right with overflow")
+    }
+}
 
-impl_from!(u256, 4, u512, 8);
-impl_from!(u256, 4, u1024, 16);
-impl_from!(u512, 8, u1024, 16);
+impl<const N: usize, const S: bool> ShrAssign<u32> for BigInt<N, S> {
+    fn shr_assign(&mut self, rhs: u32) { *self = *self >> rhs }
+}
+
+impl<const N: usize, const S: bool> Not for BigInt<N, S> {
+    type Output = Self;
+
+    fn not(self) -> Self { Self(self.0.map(|limb| !limb)) }
+}
+
+impl<const N: usize> Neg for BigInt<N, true> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        assert!(self != Self::MIN, "attempt to negate with overflow");
+        self.wrapping_neg()
+    }
+}
+
+impl<const N: usize, const S: bool> Display for BigInt<N, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        /// The largest power of ten which fits a limb.
+        const CHUNK: u64 = 10u64.pow(CHUNK_DIGITS);
+        const CHUNK_DIGITS: u32 = 19;
+
+        let mut buf = [[0; 20]; N];
+        let buf = buf.as_flattened_mut();
+        let mut pos = buf.len();
+        let (mut magnitude, mut divisor) = (self.magnitude(), [0; N]);
+        divisor[0] = CHUNK;
+        loop {
+            let (quot, rem) = limbs::div_rem(&magnitude, &divisor);
+            let (mut chunk, last) = (rem[0], quot == [0; N]);
+            // All chunks but the most significant one are padded with zeros.
+            for _ in 0..CHUNK_DIGITS {
+                pos -= 1;
+                buf[pos] = b'0' + (chunk % 10) as u8;
+                chunk /= 10;
+                if last && chunk == 0 {
+                    break;
+                }
+            }
+            if last {
+                break;
+            }
+            magnitude = quot;
+        }
+        let digits = str::from_utf8(&buf[pos..]).map_err(|_| fmt::Error)?;
+        f.pad_integral(!self.is_negative(), "", digits)
+    }
+}
+
+impl<const N: usize, const S: bool> Debug for BigInt<N, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { Display::fmt(self, f) }
+}
+
+impl<const N: usize, const S: bool> Binary for BigInt<N, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmt_radix::<64>(f, 1, b"0123456789abcdef", "0b")
+    }
+}
+
+impl<const N: usize, const S: bool> Octal for BigInt<N, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmt_radix::<22>(f, 3, b"0123456789abcdef", "0o")
+    }
+}
+
+impl<const N: usize, const S: bool> LowerHex for BigInt<N, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmt_radix::<16>(f, 4, b"0123456789abcdef", "0x")
+    }
+}
+
+impl<const N: usize, const S: bool> UpperHex for BigInt<N, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fmt_radix::<16>(f, 4, b"0123456789ABCDEF", "0x")
+    }
+}
+
+/// Human-readable formats use the hex encoding of the big-endian bytes of the
+/// number, while the binary formats use the bytes themselves.
+#[cfg(feature = "serde")]
+impl<const N: usize, const S: bool> serde::Serialize for BigInt<N, S> {
+    fn serialize<Sr: serde::Serializer>(&self, serializer: Sr) -> Result<Sr::Ok, Sr::Error> {
+        if serializer.is_human_readable() {
+            serializer.collect_str(&format_args!("{self:0width$x}", width = 2 * Self::BYTES))
+        } else {
+            serializer.serialize_bytes(self.to_be_chunks().as_flattened())
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, const N: usize, const S: bool> serde::Deserialize<'de> for BigInt<N, S> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::{Error, Unexpected, Visitor};
+
+        struct BytesVisitor<const N: usize, const S: bool>;
+
+        impl<const N: usize, const S: bool> Visitor<'_> for BytesVisitor<N, S> {
+            type Value = BigInt<N, S>;
+
+            fn expecting(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                write!(f, "{} bytes or a hex string of {} characters", 8 * N, 16 * N)
+            }
+
+            fn visit_str<E: Error>(self, s: &str) -> Result<Self::Value, E> {
+                let bytes = crate::hex::HexIterator::new(s)
+                    .ok()
+                    .filter(|bytes| bytes.len() == 8 * N)
+                    .ok_or_else(|| E::invalid_length(s.len(), &self))?;
+                let mut chunks = [[0; 8]; N];
+                for (dst, src) in chunks.as_flattened_mut().iter_mut().zip(bytes) {
+                    *dst = src.map_err(|_| E::invalid_value(Unexpected::Str(s), &self))?;
+                }
+                Ok(BigInt::from_be_chunks(&chunks))
+            }
+
+            fn visit_bytes<E: Error>(self, bytes: &[u8]) -> Result<Self::Value, E> {
+                BigInt::from_be_slice(bytes).map_err(|_| E::invalid_length(bytes.len(), &self))
+            }
+        }
+
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(BytesVisitor)
+        } else {
+            deserializer.deserialize_bytes(BytesVisitor)
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    #![allow(unused)]
-
     use super::*;
 
-    construct_bigint!(Uint128, 2);
-    construct_unsigned_bigint_methods!(Uint128, 2);
+    type U128 = BigInt<2, false>;
+    type I128 = BigInt<2, true>;
 
-    #[test]
-    fn u256_bits_test() {
-        assert_eq!(u256::from(255u64).bits_required(), 8);
-        assert_eq!(u256::from(256u64).bits_required(), 9);
-        assert_eq!(u256::from(300u64).bits_required(), 9);
-        assert_eq!(u256::from(60000u64).bits_required(), 16);
-        assert_eq!(u256::from(70000u64).bits_required(), 17);
-
-        // Try to read the following lines out loud quickly
-        let mut shl = u256::from(70000u64);
-        shl <<= 100;
-        assert_eq!(shl.bits_required(), 117);
-        shl <<= 100;
-        assert_eq!(shl.bits_required(), 217);
-        shl <<= 100;
-        assert_eq!(shl.bits_required(), 0);
-
-        // Bit set check
-        assert!(!u256::from(10u64).bit(0));
-        assert!(u256::from(10u64).bit(1));
-        assert!(!u256::from(10u64).bit(2));
-        assert!(u256::from(10u64).bit(3));
-        assert!(!u256::from(10u64).bit(4));
+    fn u(val: u128) -> U128 { BigInt::from_inner([val as u64, (val >> 64) as u64]) }
+    fn i(val: i128) -> I128 { u(val as u128).cast_signed() }
+    fn flagged<T, B>(conv: fn(T) -> B) -> impl Fn((T, bool)) -> (B, bool) {
+        move |(val, flag)| (conv(val), flag)
     }
 
-    #[test]
-    fn u256_display_test() {
-        assert_eq!(
-            format!("{}", u256::from(0xDEADBEEFu64)),
-            "0x00000000000000000000000000000000000000000000000000000000deadbeef"
-        );
-        assert_eq!(
-            format!("{}", u256::from(u64::MAX)),
-            "0x000000000000000000000000000000000000000000000000ffffffffffffffff"
-        );
+    /// Xorshift generator of limbs, biased towards the values provoking carries
+    /// and other corner cases of the multi-precision arithmetic.
+    struct Rng(u64);
 
-        let max_val =
-            u256([0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]);
-        assert_eq!(
-            format!("{}", max_val),
-            "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-        );
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn limb(&mut self) -> u64 {
+            match self.next() % 10 {
+                0 => 0,
+                1 => 1,
+                2 => u64::MAX,
+                3 => u64::MAX - 1,
+                4 => 1 << 63,
+                5 => (1 << 63) - 1,
+                6 => self.next() >> (self.next() % 64),
+                _ => self.next(),
+            }
+        }
+
+        /// Number with a random count of significant limbs.
+        fn limbs<const N: usize>(&mut self) -> [u64; N] {
+            let len = self.next() as usize % (N + 1);
+            array::from_fn(|i| if i < len { self.limb() } else { 0 })
+        }
     }
 
-    #[cfg(feature = "alloc")]
-    #[test]
-    fn fmt_hex() {
-        let one = u256::ONE;
-        let u_256 =
-            u256([0x0000000000000000, 0xAAAAAAAABBBBBBBB, 0x0000000111122222, 0x0000000000000000]);
-
-        // UpperHex
-        assert_eq!(format!("{:X}", u_256), "111122222AAAAAAAABBBBBBBB0000000000000000");
-        assert_eq!(format!("{:#X}", u_256), "0x111122222AAAAAAAABBBBBBBB0000000000000000");
-        assert_eq!(format!("{:X}", u256::ZERO), "0");
-        assert_eq!(format!("{:05X}", one), "00001");
-        assert_eq!(format!("{:#05X}", one), "0x001");
-        assert_eq!(format!("{:5X}", one), "1    ");
-        assert_eq!(format!("{:#5X}", one), "0x1  ");
-        assert_eq!(format!("{:w^#7X}", one), "ww0x1ww");
-
-        // LowerHex
-        assert_eq!(format!("{:x}", u_256), "111122222aaaaaaaabbbbbbbb0000000000000000");
-        assert_eq!(format!("{:#x}", u_256), "0x111122222aaaaaaaabbbbbbbb0000000000000000");
-        assert_eq!(format!("{:x}", u256::ZERO), "0");
-        assert_eq!(format!("{:05x}", one), "00001");
-        assert_eq!(format!("{:#05x}", one), "0x001");
-        assert_eq!(format!("{:5x}", one), "1    ");
-        assert_eq!(format!("{:#5x}", one), "0x1  ");
-        assert_eq!(format!("{:w^#7x}", one), "ww0x1ww");
+    /// Edge cases of 128-bit arithmetic mixed with random numbers.
+    fn samples() -> Vec<u128> {
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+        let mut samples = vec![0, 1, 2, 3, 4, 5, 7, 10, 255, 256, 60000, 70000];
+        for pow in [1u128 << 31, 1 << 32, 1 << 63, 1 << 64, 1 << 65, 1 << 126, 1 << 127] {
+            samples.extend([
+                pow - 1,
+                pow,
+                pow + 1,
+                pow.wrapping_neg(),
+                !pow,
+                0u128.wrapping_sub(pow + 1),
+            ]);
+        }
+        samples.extend([u128::MAX, u128::MAX - 1, u128::MAX - 2, u128::MAX / 3, u128::MAX / 10]);
+        samples.extend((0..40).map(|_| u128::from(rng.limb()) << 64 | u128::from(rng.limb())));
+        samples
     }
 
-    #[cfg(feature = "alloc")]
-    #[test]
-    fn fmt_octal() {
-        let one = u256::ONE;
-        let u_256 = u256([
-            0o0000000000000000000000,
-            0o0011222222222222222222,
-            0o0000000001111111111111,
-            0o0000000000000000000000,
-        ]);
+    const SHIFTS: [u32; 14] = [0, 1, 2, 31, 63, 64, 65, 100, 126, 127, 128, 129, 1000, u32::MAX];
 
-        assert_eq!(
-            format!("{:o}", u_256),
-            "111111111111100112222222222222222220000000000000000000000"
-        );
-        assert_eq!(
-            format!("{:#o}", u_256),
-            "0o111111111111100112222222222222222220000000000000000000000"
-        );
-        assert_eq!(format!("{:o}", u256::ZERO), "0");
-        assert_eq!(format!("{:05o}", one), "00001");
-        assert_eq!(format!("{:#05o}", one), "0o001");
-        assert_eq!(format!("{:5o}", one), "1    ");
-        assert_eq!(format!("{:#5o}", one), "0o1  ");
-        assert_eq!(format!("{:w^#7o}", one), "ww0o1ww");
+    macro_rules! assert_fmt {
+        ($big:expr, $prim:expr => $($spec:literal)+) => {$(
+            assert_eq!(format!($spec, $big), format!($spec, $prim), "{} of {}", $spec, $prim);
+        )+};
     }
 
-    #[cfg(feature = "alloc")]
-    #[test]
-    fn fmt_binary() {
-        let one = u256::ONE;
-        let u_256 = u256([
-            0b0000000000000000000000000000000000000000000000000000000000000000,
-            0b0001111000011110001111000011110001111000011110001111000011110000,
-            0b0000000000000000000000000000001111111111111111111111111111111111,
-            0b0000000000000000000000000000000000000000000000000000000000000000,
-        ]);
-
-        assert_eq!(
-            format!("{:b}", u_256),
-            "111111111111111111111111111111111100011110000111100011110000111100011110000111100011110000111100000000000000000000000000000000000000000000000000000000000000000000"
-        );
-        assert_eq!(
-            format!("{:#b}", u_256),
-            "0b111111111111111111111111111111111100011110000111100011110000111100011110000111100011110000111100000000000000000000000000000000000000000000000000000000000000000000"
-        );
-        assert_eq!(format!("{:b}", u256::ZERO), "0");
-        assert_eq!(format!("{:05b}", one), "00001");
-        assert_eq!(format!("{:#05b}", one), "0b001");
-        assert_eq!(format!("{:5b}", one), "1    ");
-        assert_eq!(format!("{:#5b}", one), "0b1  ");
-        assert_eq!(format!("{:w^#7b}", one), "ww0b1ww");
-    }
-
-    #[test]
-    fn u256_comp_test() {
-        let small = u256([10u64, 0, 0, 0]);
-        let big = u256([0x8C8C3EE70C644118u64, 0x0209E7378231E632, 0, 0]);
-        let bigger = u256([0x9C8C3EE70C644118u64, 0x0209E7378231E632, 0, 0]);
-        let biggest = u256([0x5C8C3EE70C644118u64, 0x0209E7378231E632, 0, 1]);
-
-        assert!(small < big);
-        assert!(big < bigger);
-        assert!(bigger < biggest);
-        assert!(bigger <= biggest);
-        assert!(biggest <= biggest);
-        assert!(bigger >= big);
-        assert!(bigger >= small);
-        assert!(small <= small);
-    }
-
-    #[test]
-    fn uint_from_be_bytes() {
-        assert_eq!(
-            Uint128::from_be_bytes([
-                0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
-                0xfe, 0xed
-            ]),
-            Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
-        );
-
-        assert_eq!(
-            u256::from_be_bytes([
-                0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
-                0xfe, 0xed, 0xba, 0xad, 0xf0, 0x0d, 0xde, 0xfa, 0xce, 0xda, 0x11, 0xfe, 0xd2, 0xba,
-                0xd1, 0xc0, 0xff, 0xe0
-            ]),
-            u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
-        );
-    }
-
-    #[test]
-    fn uint_from_le_bytes() {
-        let mut be = [
-            0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
-            0xfe, 0xed,
-        ];
-        be.reverse();
-        assert_eq!(Uint128::from_le_bytes(be), Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef]));
-
-        let mut be = [
-            0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
-            0xfe, 0xed, 0xba, 0xad, 0xf0, 0x0d, 0xde, 0xfa, 0xce, 0xda, 0x11, 0xfe, 0xd2, 0xba,
-            0xd1, 0xc0, 0xff, 0xe0,
-        ];
-        be.reverse();
-        assert_eq!(
-            u256::from_le_bytes(be),
-            u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
-        );
-    }
-
-    #[test]
-    fn uint_to_be_bytes() {
-        assert_eq!(Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef]).to_be_bytes(), [
-            0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
-            0xfe, 0xed
-        ]);
-
-        assert_eq!(
-            u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
-                .to_be_bytes(),
-            [
-                0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
-                0xfe, 0xed, 0xba, 0xad, 0xf0, 0x0d, 0xde, 0xfa, 0xce, 0xda, 0x11, 0xfe, 0xd2, 0xba,
-                0xd1, 0xc0, 0xff, 0xe0
-            ]
-        );
-    }
-
-    #[test]
-    fn uint_to_le_bytes() {
-        assert_eq!(Uint128([0xdeafbabe2bedfeed, 0x1badcafedeadbeef]).to_le_bytes(), [
-            0xed, 0xfe, 0xed, 0x2b, 0xbe, 0xba, 0xaf, 0xde, 0xef, 0xbe, 0xad, 0xde, 0xfe, 0xca,
-            0xad, 0x1b
-        ]);
-
-        assert_eq!(
-            u256([0x11fed2bad1c0ffe0, 0xbaadf00ddefaceda, 0xdeafbabe2bedfeed, 0x1badcafedeadbeef])
-                .to_le_bytes(),
-            [
-                0xe0, 0xff, 0xc0, 0xd1, 0xba, 0xd2, 0xfe, 0x11, 0xda, 0xce, 0xfa, 0xde, 0x0d, 0xf0,
-                0xad, 0xba, 0xed, 0xfe, 0xed, 0x2b, 0xbe, 0xba, 0xaf, 0xde, 0xef, 0xbe, 0xad, 0xde,
-                0xfe, 0xca, 0xad, 0x1b,
-            ]
-        );
-    }
-
-    #[test]
-    fn u256_div_rem_0() {
-        let zero = u256::ZERO;
-        let number_one = u256::from(0xDEADBEEFu64);
-        let number_two = u256::from(u64::MAX);
-        let one_div_rem_two =
-            (u256::from(u64::MAX / 0xDEADBEEFu64), u256::from(u64::MAX % 0xDEADBEEFu64));
-        let max = u256::MAX;
-
-        // Division by zero gets not panic and gets None
-        assert_eq!(u256::div_rem(max, zero), Err(DivError::ZeroDiv));
-        assert_eq!(u256::div_rem(number_two, zero), Err(DivError::ZeroDiv));
-        assert_eq!(u256::div_rem(number_one, zero), Err(DivError::ZeroDiv));
-
-        // Division of zero gets Zero
-        assert_eq!(u256::div_rem(zero, max), Ok((zero, zero)));
-        assert_eq!(u256::div_rem(zero, number_two), Ok((zero, zero)));
-        assert_eq!(u256::div_rem(zero, number_one), Ok((zero, zero)));
-
-        // Division by another than zero not gets None
-        assert!(u256::div_rem(max, number_one).is_ok());
-        assert!(u256::div_rem(number_two, number_one).is_ok());
-
-        // In u256 division gets the same as in u64
-        assert_eq!(u256::div_rem(number_two, number_one), Ok(one_div_rem_two));
-    }
-
-    #[test]
-    fn u256_div_rem_1() {
-        let zero = u256::ZERO;
-        let number_one = u256::from(0xDEADBEEFu64);
-        let number_two = u256::from(u64::MAX);
-        let max = u256::MAX;
-
-        assert!(u256::div_rem(max, zero).is_err());
-        assert!(u256::div_rem(number_one, zero).is_err());
-        assert!(u256::div_rem(number_two, zero).is_err());
-
-        assert_eq!(u256::MAX / u256::ONE, u256::MAX);
-        assert_eq!(u256::from(12u8) / u256::from(4u8), u256::from(3u8));
-        assert!(std::panic::catch_unwind(|| number_one / zero).is_err());
-        assert!(std::panic::catch_unwind(|| i256::MIN / (-i256::ONE)).is_err());
-    }
-
-    #[test]
-    fn bigint_min_max() {
-        assert_eq!(u256::MIN.as_inner(), &[0u64; 4]);
-        assert_eq!(u512::MIN.as_inner(), &[0u64; 8]);
-        assert_eq!(u1024::MIN.as_inner(), &[0u64; 16]);
-        assert_eq!(u256::MAX.as_inner(), &[u64::MAX; 4]);
-        assert_eq!(u512::MAX.as_inner(), &[u64::MAX; 8]);
-        assert_eq!(u1024::MAX.as_inner(), &[u64::MAX; 16]);
-        assert_eq!(u256::BITS, 4 * 64);
-        assert_eq!(u512::BITS, 8 * 64);
-        assert_eq!(u1024::BITS, 16 * 64);
-    }
-
-    #[test]
-    fn u256_arithmetic_test() {
-        let init = u256::from(0xDEADBEEFDEADBEEFu64);
-        let copy = init;
-
-        let add = init + copy;
-        assert_eq!(add, u256([0xBD5B7DDFBD5B7DDEu64, 1, 0, 0]));
-        // Bitshifts
-        let shl = add << 88;
-        assert_eq!(shl, u256([0u64, 0xDFBD5B7DDE000000, 0x1BD5B7D, 0]));
-        let shr = shl >> 40;
-        assert_eq!(shr, u256([0x7DDE000000000000u64, 0x0001BD5B7DDFBD5B, 0, 0]));
-        // Increment
-        let mut incr = shr;
-        incr += 1u32;
-        assert_eq!(incr, u256([0x7DDE000000000001u64, 0x0001BD5B7DDFBD5B, 0, 0]));
-        // Subtraction
-        let sub = incr - init;
-        assert_eq!(sub, u256([0x9F30411021524112u64, 0x0001BD5B7DDFBD5A, 0, 0]));
-        // Multiplication
-        let mult = sub * 300u32;
-        assert_eq!(mult, u256([0x8C8C3EE70C644118u64, 0x0209E7378231E632, 0, 0]));
-        // Division
-        assert_eq!(u256::from(105u64) / u256::from(5u64), u256::from(21u64));
-        let div = mult / u256::from(300u64);
-        assert_eq!(div, u256([0x9F30411021524112u64, 0x0001BD5B7DDFBD5A, 0, 0]));
-
-        assert_eq!(u256::from(105u64) % u256::from(5u64), u256::from(0u64));
-        assert_eq!(u256::from(35498456u64) % u256::from(3435u64), u256::from(1166u64));
-        let rem_src = mult * u256::from(39842u64) + u256::from(9054u64);
-        assert_eq!(rem_src % u256::from(39842u64), u256::from(9054u64));
-        // TODO: bit inversion
-    }
-
-    #[test]
-    fn mul_u32_test() {
-        let u64_val = u256::from(0xDEADBEEFDEADBEEFu64);
-
-        let u96_res = u64_val * 0xFFFFFFFFu32;
-        let u128_res = u96_res * 0xFFFFFFFFu32;
-        let u160_res = u128_res * 0xFFFFFFFFu32;
-        let u192_res = u160_res * 0xFFFFFFFFu32;
-        let u224_res = u192_res * 0xFFFFFFFFu32;
-        let u256_res = u224_res * 0xFFFFFFFFu32;
-
-        assert_eq!(u96_res, u256([0xffffffff21524111u64, 0xDEADBEEE, 0, 0]));
-        assert_eq!(u128_res, u256([0x21524111DEADBEEFu64, 0xDEADBEEE21524110, 0, 0]));
-        assert_eq!(u160_res, u256([0xBD5B7DDD21524111u64, 0x42A4822200000001, 0xDEADBEED, 0]));
-        assert_eq!(
-            u192_res,
-            u256([0x63F6C333DEADBEEFu64, 0xBD5B7DDFBD5B7DDB, 0xDEADBEEC63F6C334, 0])
-        );
-        assert_eq!(
-            u224_res,
-            u256([0x7AB6FBBB21524111u64, 0xFFFFFFFBA69B4558, 0x854904485964BAAA, 0xDEADBEEB])
-        );
-        assert_eq!(
-            u256_res,
-            u256([
-                0xA69B4555DEADBEEFu64,
-                0xA69B455CD41BB662,
-                0xD41BB662A69B4550,
-                0xDEADBEEAA69B455C
-            ])
-        );
-    }
-
-    #[test]
-    fn multiplication_test() {
-        let u64_val = u256::from(0xDEADBEEFDEADBEEFu64);
-
-        let u128_res = u64_val * u64_val;
-
-        assert_eq!(u128_res, u256([0x048D1354216DA321u64, 0xC1B1CD13A4D13D46, 0, 0]));
-
-        let u256_res = u128_res * u128_res;
-
-        assert_eq!(
-            u256_res,
-            u256([
-                0xF4E166AAD40D0A41u64,
-                0xF5CF7F3618C2C886u64,
-                0x4AFCFF6F0375C608u64,
-                0x928D92B4D7F5DF33u64
-            ])
-        );
-    }
-
-    #[test]
-    fn u256_extreme_bitshift_test() {
-        // Shifting a u64 by 64 bits gives an undefined value, so make sure that
-        // we're doing the Right Thing here
-        let init = u256::from(0xDEADBEEFDEADBEEFu64);
-
-        assert_eq!(init << 64, u256([0, 0xDEADBEEFDEADBEEF, 0, 0]));
-        let add = (init << 64) + init;
-        assert_eq!(add, u256([0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0, 0]));
-        assert_eq!(add >> 0, u256([0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0, 0]));
-        assert_eq!(add << 0, u256([0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0, 0]));
-        assert_eq!(add >> 64, u256([0xDEADBEEFDEADBEEF, 0, 0, 0]));
-        assert_eq!(add << 64, u256([0, 0xDEADBEEFDEADBEEF, 0xDEADBEEFDEADBEEF, 0]));
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn u256_serde_test() {
-        let check = |uint, hex| {
-            let json = format!("\"{}\"", hex);
-            assert_eq!(::serde_json::to_string(&uint).unwrap(), json);
-            assert_eq!(::serde_json::from_str::<u256>(&json).unwrap(), uint);
+    macro_rules! assert_same_fmt {
+        ($big:expr, $prim:expr) => {
+            assert_fmt!($big, $prim => "{}" "{:?}" "{:b}" "{:o}" "{:x}" "{:X}" "{:#b}" "{:#o}"
+                "{:#x}" "{:#X}" "{:+}" "{:45}" "{:<45}" "{:^45}" "{:>+45}" "{:045}" "{:+045}"
+                "{:#040x}" "{:_<#40X}" "{:*^#140b}" "{:#050o}" "{:1}" "{:#1x}");
         };
-
-        check(u256::from(0u64), "0000000000000000000000000000000000000000000000000000000000000000");
-        check(
-            u256::from(0xDEADBEEFu64),
-            "00000000000000000000000000000000000000000000000000000000deadbeef",
-        );
-        check(
-            u256([0xaa11, 0xbb22, 0xcc33, 0xdd44]),
-            "000000000000dd44000000000000cc33000000000000bb22000000000000aa11",
-        );
-        check(
-            u256([u64::MAX, u64::MAX, u64::MAX, u64::MAX]),
-            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-        );
-        check(
-            u256([0xA69B4555DEADBEEF, 0xA69B455CD41BB662, 0xD41BB662A69B4550, 0xDEADBEEAA69B455C]),
-            "deadbeeaa69b455cd41bb662a69b4550a69b455cd41bb662a69b4555deadbeef",
-        );
-
-        assert!(
-            ::serde_json::from_str::<u256>(
-                "\"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffg\""
-            )
-            .is_err()
-        ); // invalid char
-        assert!(
-            ::serde_json::from_str::<u256>(
-                "\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\""
-            )
-            .is_err()
-        ); // invalid length
-        assert!(
-            ::serde_json::from_str::<u256>(
-                "\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\""
-            )
-            .is_err()
-        ); // invalid length
     }
 
     #[test]
-    fn i256_test() {
-        let x = i256::from(1);
-        let y = i256::from(1);
-        assert_eq!(x.checked_add(y), Some(i256::from(2)));
+    fn unsigned_matches_u128() {
+        let samples = samples();
+        for &a in &samples {
+            let x = u(a);
+            assert_eq!(x.is_zero(), a == 0);
+            assert_eq!(x.is_positive(), a > 0);
+            assert!(!x.is_negative());
+            assert_eq!(x.leading_zeros(), a.leading_zeros());
+            assert_eq!(x.leading_ones(), a.leading_ones());
+            assert_eq!(x.trailing_zeros(), a.trailing_zeros());
+            assert_eq!(x.trailing_ones(), a.trailing_ones());
+            assert_eq!(x.bits_required(), 128 - a.leading_zeros());
+            assert_eq!(x.low_u64(), a as u64);
+            assert_eq!(x.low_u32(), a as u32);
+            assert_eq!(!x, u(!a));
+            assert_eq!(x.wrapping_neg(), u(a.wrapping_neg()));
+            assert_eq!(x.cast_signed(), i(a as i128));
+            assert_eq!(U128::from(a), x);
+            for bit in 0..128 {
+                assert_eq!(x.bit(bit), a >> bit & 1 == 1);
+            }
+            for shift in SHIFTS {
+                assert_eq!(x.unbounded_shl(shift), u(a.unbounded_shl(shift)));
+                assert_eq!(x.unbounded_shr(shift), u(a.unbounded_shr(shift)));
+                assert_eq!(x.checked_shl(shift), a.checked_shl(shift).map(u));
+                assert_eq!(x.checked_shr(shift), a.checked_shr(shift).map(u));
+            }
+            assert_same_fmt!(x, a);
+            for radix in [2, 3, 8, 10, 16, 36] {
+                let digits = match radix {
+                    2 => format!("{a:b}"),
+                    8 => format!("{a:o}"),
+                    16 => format!("{a:x}"),
+                    _ => format!("{a}"),
+                };
+                for src in [
+                    digits.clone(),
+                    format!("+{digits}"),
+                    format!("-{digits}"),
+                    format!("{digits}0"),
+                ] {
+                    let expected = u128::from_str_radix(&src, radix)
+                        .map(u)
+                        .map_err(|err| *err.kind());
+                    assert_eq!(
+                        U128::from_str_radix(&src, radix).map_err(|err| err.0),
+                        expected,
+                        "{src}"
+                    );
+                }
+            }
+
+            for &b in &samples {
+                let y = u(b);
+                assert_eq!(x.cmp(&y), a.cmp(&b));
+                assert_eq!(x & y, u(a & b));
+                assert_eq!(x | y, u(a | b));
+                assert_eq!(x ^ y, u(a ^ b));
+
+                assert_eq!(x.overflowing_add(y), flagged(u)(a.overflowing_add(b)));
+                assert_eq!(x.overflowing_sub(y), flagged(u)(a.overflowing_sub(b)));
+                assert_eq!(x.overflowing_mul(y), flagged(u)(a.overflowing_mul(b)));
+                assert_eq!(x.checked_add(y), a.checked_add(b).map(u));
+                assert_eq!(x.checked_sub(y), a.checked_sub(b).map(u));
+                assert_eq!(x.checked_mul(y), a.checked_mul(b).map(u));
+                assert_eq!(x.wrapping_add(y), u(a.wrapping_add(b)));
+                assert_eq!(x.wrapping_sub(y), u(a.wrapping_sub(b)));
+                assert_eq!(x.wrapping_mul(y), u(a.wrapping_mul(b)));
+                assert_eq!(x.saturating_add(y), u(a.saturating_add(b)));
+                assert_eq!(x.saturating_sub(y), u(a.saturating_sub(b)));
+                assert_eq!(x.saturating_mul(y), u(a.saturating_mul(b)));
+
+                assert_eq!(x.checked_div(y), a.checked_div(b).map(u));
+                assert_eq!(x.checked_rem(y), a.checked_rem(b).map(u));
+                assert_eq!(x.checked_div_euclid(y), a.checked_div_euclid(b).map(u));
+                assert_eq!(x.checked_rem_euclid(y), a.checked_rem_euclid(b).map(u));
+                if b == 0 {
+                    assert_eq!(x.div_rem(y), Err(DivError::ZeroDiv));
+                    assert_eq!(x.div_rem_euclid(y), Err(DivError::ZeroDiv));
+                    continue;
+                }
+                assert_eq!(x.div_rem(y), Ok((u(a / b), u(a % b))));
+                assert_eq!(x / y, u(a / b));
+                assert_eq!(x % y, u(a % b));
+                assert_eq!(x.overflowing_div(y), (u(a / b), false));
+                assert_eq!(x.overflowing_rem(y), (u(a % b), false));
+                assert_eq!(x.wrapping_div(y), u(a / b));
+                assert_eq!(x.wrapping_rem(y), u(a % b));
+                assert_eq!(x.saturating_div(y), u(a / b));
+                assert_eq!(x.div_euclid(y), u(a / b));
+                assert_eq!(x.rem_euclid(y), u(a % b));
+            }
+        }
     }
 
     #[test]
-    fn i256_is_positive_test() {
-        assert!(i256::from(1).is_positive());
-        assert!(!i256::from(-1).is_positive());
-        assert!(!i256::from(0).is_positive());
-        assert!(i256::MAX.is_positive());
-        assert!(!i256::MIN.is_positive());
-        assert!(i256::MIN.is_negative());
+    fn signed_matches_i128() {
+        let samples: Vec<i128> = samples().into_iter().map(|val| val as i128).collect();
+        for &a in &samples {
+            let x = i(a);
+            assert_eq!(x.is_zero(), a == 0);
+            assert_eq!(x.is_positive(), a > 0);
+            assert_eq!(x.is_negative(), a < 0);
+            assert_eq!(x.leading_zeros(), a.leading_zeros());
+            assert_eq!(x.leading_ones(), a.leading_ones());
+            assert_eq!(x.trailing_zeros(), a.trailing_zeros());
+            assert_eq!(x.trailing_ones(), a.trailing_ones());
+            let sign_bits = if a < 0 {
+                a.leading_ones()
+            } else {
+                a.leading_zeros()
+            };
+            assert_eq!(x.bits_required(), 129 - sign_bits);
+            assert_eq!(!x, i(!a));
+            assert_eq!(x.wrapping_neg(), i(a.wrapping_neg()));
+            assert_eq!(x.unsigned_abs(), u(a.unsigned_abs()));
+            assert_eq!(x.cast_unsigned(), u(a as u128));
+            assert_eq!(I128::from(a), x);
+            if a != i128::MIN {
+                assert_eq!(-x, i(-a));
+                assert_eq!(x.abs(), i(a.abs()));
+            }
+            for shift in SHIFTS {
+                assert_eq!(x.unbounded_shl(shift), i(a.unbounded_shl(shift)));
+                assert_eq!(x.unbounded_shr(shift), i(a.unbounded_shr(shift)));
+                assert_eq!(x.checked_shl(shift), a.checked_shl(shift).map(i));
+                assert_eq!(x.checked_shr(shift), a.checked_shr(shift).map(i));
+            }
+            assert_same_fmt!(x, a);
+            for radix in [2, 7, 10, 16, 36] {
+                let digits = match radix {
+                    2 => format!("{:b}", a.unsigned_abs()),
+                    16 => format!("{:X}", a.unsigned_abs()),
+                    _ => format!("{}", a.unsigned_abs()),
+                };
+                for src in [
+                    digits.clone(),
+                    format!("+{digits}"),
+                    format!("-{digits}"),
+                    format!("-{digits}1"),
+                ] {
+                    let expected = i128::from_str_radix(&src, radix)
+                        .map(i)
+                        .map_err(|err| *err.kind());
+                    assert_eq!(
+                        I128::from_str_radix(&src, radix).map_err(|err| err.0),
+                        expected,
+                        "{src}"
+                    );
+                }
+            }
+
+            for &b in &samples {
+                let y = i(b);
+                assert_eq!(x.cmp(&y), a.cmp(&b));
+                assert_eq!(x & y, i(a & b));
+                assert_eq!(x | y, i(a | b));
+                assert_eq!(x ^ y, i(a ^ b));
+
+                assert_eq!(x.overflowing_add(y), flagged(i)(a.overflowing_add(b)));
+                assert_eq!(x.overflowing_sub(y), flagged(i)(a.overflowing_sub(b)));
+                assert_eq!(x.overflowing_mul(y), flagged(i)(a.overflowing_mul(b)));
+                assert_eq!(x.checked_add(y), a.checked_add(b).map(i));
+                assert_eq!(x.checked_sub(y), a.checked_sub(b).map(i));
+                assert_eq!(x.checked_mul(y), a.checked_mul(b).map(i));
+                assert_eq!(x.wrapping_add(y), i(a.wrapping_add(b)));
+                assert_eq!(x.wrapping_sub(y), i(a.wrapping_sub(b)));
+                assert_eq!(x.wrapping_mul(y), i(a.wrapping_mul(b)));
+                assert_eq!(x.saturating_add(y), i(a.saturating_add(b)));
+                assert_eq!(x.saturating_sub(y), i(a.saturating_sub(b)));
+                assert_eq!(x.saturating_mul(y), i(a.saturating_mul(b)));
+
+                assert_eq!(x.checked_div(y), a.checked_div(b).map(i));
+                assert_eq!(x.checked_rem(y), a.checked_rem(b).map(i));
+                assert_eq!(x.checked_div_euclid(y), a.checked_div_euclid(b).map(i));
+                assert_eq!(x.checked_rem_euclid(y), a.checked_rem_euclid(b).map(i));
+                if b == 0 {
+                    assert_eq!(x.div_rem(y), Err(DivError::ZeroDiv));
+                    assert_eq!(x.div_rem_euclid(y), Err(DivError::ZeroDiv));
+                    continue;
+                }
+                assert_eq!(x.overflowing_div(y), flagged(i)(a.overflowing_div(b)));
+                assert_eq!(x.overflowing_rem(y), flagged(i)(a.overflowing_rem(b)));
+                assert_eq!(x.overflowing_div_euclid(y), flagged(i)(a.overflowing_div_euclid(b)));
+                assert_eq!(x.overflowing_rem_euclid(y), flagged(i)(a.overflowing_rem_euclid(b)));
+                assert_eq!(x.wrapping_div(y), i(a.wrapping_div(b)));
+                assert_eq!(x.wrapping_rem(y), i(a.wrapping_rem(b)));
+                assert_eq!(x.wrapping_div_euclid(y), i(a.wrapping_div_euclid(b)));
+                assert_eq!(x.wrapping_rem_euclid(y), i(a.wrapping_rem_euclid(b)));
+                assert_eq!(x.saturating_div(y), i(a.saturating_div(b)));
+                if a == i128::MIN && b == -1 {
+                    assert_eq!(x.div_rem(y), Err(DivError::Overflow));
+                    assert_eq!(x.div_rem_euclid(y), Err(DivError::Overflow));
+                    continue;
+                }
+                assert_eq!(x.div_rem(y), Ok((i(a / b), i(a % b))));
+                assert_eq!(x / y, i(a / b));
+                assert_eq!(x % y, i(a % b));
+                assert_eq!(x.div_euclid(y), i(a.div_euclid(b)));
+                assert_eq!(x.rem_euclid(y), i(a.rem_euclid(b)));
+            }
+        }
     }
 
     #[test]
-    fn u256_add_test() {
-        assert_eq!((u256::MAX - u256::ONE, true), u256::MAX.overflowing_add(u256::MAX));
+    fn single_limb_matches_u64() {
+        let mut rng = Rng(42);
+        for _ in 0..10_000 {
+            let (a, b) = (rng.limb(), rng.limb());
+            let (x, y) = (BigInt::<1, false>::from(a), BigInt::<1, false>::from(b));
+            assert_eq!(x.overflowing_add(y), flagged(BigInt::from)(a.overflowing_add(b)));
+            assert_eq!(x.overflowing_sub(y), flagged(BigInt::from)(a.overflowing_sub(b)));
+            assert_eq!(x.overflowing_mul(y), flagged(BigInt::from)(a.overflowing_mul(b)));
+            assert_eq!(x.checked_div(y), a.checked_div(b).map(BigInt::from));
+            assert_eq!(x.checked_rem(y), a.checked_rem(b).map(BigInt::from));
+            assert_eq!(x.to_string(), a.to_string());
+            assert_eq!(format!("{x:#o}"), format!("{a:#o}"));
+            let (x, y) = (BigInt::<1, true>::from(a as i64), BigInt::<1, true>::from(b as i64));
+            let (a, b) = (a as i64, b as i64);
+            assert_eq!(x.overflowing_mul(y), flagged(BigInt::from)(a.overflowing_mul(b)));
+            assert_eq!(x.checked_div(y), a.checked_div(b).map(BigInt::from));
+            assert_eq!(x.checked_rem_euclid(y), a.checked_rem_euclid(b).map(BigInt::from));
+            assert_eq!(x.to_string(), a.to_string());
+            assert_eq!(x.to_string().parse(), Ok(x));
+        }
+    }
+
+    /// Schoolbook multiplication producing all `2 * N` limbs of the product.
+    fn mul_reference<const N: usize>(lhs: &[u64; N], rhs: &[u64; N]) -> ([u64; N], bool) {
+        let mut product = vec![0u64; 2 * N];
+        for i in 0..N {
+            let mut carry = 0;
+            for j in 0..N {
+                let acc =
+                    u128::from(lhs[i]) * u128::from(rhs[j]) + u128::from(product[i + j]) + carry;
+                product[i + j] = acc as u64;
+                carry = acc >> 64;
+            }
+            product[i + N] = carry as u64;
+        }
+        (array::from_fn(|i| product[i]), product[N..].iter().any(|&limb| limb != 0))
+    }
+
+    /// Binary long division, one bit of the quotient at a time.
+    fn div_rem_reference<const N: usize>(num: &[u64; N], den: &[u64; N]) -> ([u64; N], [u64; N]) {
+        let (mut quot, mut rem) = ([0; N], [0; N]);
+        for bit in (0..64 * N).rev() {
+            let carry = rem[N - 1] >> 63 == 1;
+            rem = limbs::shl(&rem, 1);
+            rem[0] |= num[bit / 64] >> (bit % 64) & 1;
+            if carry || rem.iter().rev().ge(den.iter().rev()) {
+                limbs::sub(&mut rem, den);
+                quot[bit / 64] |= 1 << (bit % 64);
+            }
+        }
+        (quot, rem)
+    }
+
+    fn check_limbs<const N: usize>(rounds: usize) {
+        let mut rng = Rng(0xDEAD_BEEF ^ N as u64);
+        for _ in 0..rounds {
+            let (a, b): ([u64; N], [u64; N]) = (rng.limbs(), rng.limbs());
+            assert_eq!(limbs::mul(&a, &b), mul_reference(&a, &b), "{a:x?} * {b:x?}");
+            if b == [0; N] {
+                continue;
+            }
+            let (quot, rem) = limbs::div_rem(&a, &b);
+            assert_eq!((quot, rem), div_rem_reference(&a, &b), "{a:x?} / {b:x?}");
+            // num == quot * den + rem
+            let (mut num, overflow) = limbs::mul(&quot, &b);
+            assert!(!overflow && !limbs::add(&mut num, &rem));
+            assert_eq!(num, a);
+        }
     }
 
     #[test]
-    fn i256_add_test() {
-        assert_eq!((i256::from(3), false), i256::from(1).overflowing_add(i256::from(2)));
-        assert_eq!((i256::from(1), false), i256::from(-1).overflowing_add(i256::from(2)));
-        assert_eq!((i256::from(-2), false), i256::from(-1).overflowing_add(i256::from(-1)));
-        assert_eq!((i256::from(0), false), i256::from(0).overflowing_add(i256::from(0)));
-        assert_eq!((i256::MIN, true), i256::from(1).overflowing_add(i256::MAX));
+    fn div_wide_matches_u128() {
+        const HIGH: u64 = 1 << 63;
+        // The extreme operands, followed by the ones which need the second
+        // correction of the quotient while the remainder is equal to the
+        // divisor, which random numbers practically never reach.
+        let corner_cases = [
+            (0, 0, HIGH),
+            (HIGH - 1, u64::MAX, HIGH),
+            (u64::MAX - 1, u64::MAX, u64::MAX),
+            (0x6000_0000_0000_0000, u64::MAX - 1, HIGH + 2),
+            (0x4000_0000_0000_0000, u64::MAX - 2, HIGH + 3),
+            (0x5555_5555_5555_5555, u64::MAX - 7, HIGH + 3),
+        ];
+        let mut rng = Rng(0xD1F1_D1F1);
+        let random = (0..200_000).map(|_| {
+            // The divisor must have the top bit set and exceed the high limb.
+            let den = rng.limb() | HIGH;
+            (rng.limb() % den, rng.limb(), den)
+        });
+        for (hi, lo, den) in corner_cases.into_iter().chain(random) {
+            let (num, wide) = (u128::from(hi) << 64 | u128::from(lo), u128::from(den));
+            let expected = ((num / wide) as u64, (num % wide) as u64);
+            assert_eq!(limbs::div_wide(hi, lo, den), expected, "{num:#x} / {den:#x}");
+            assert_eq!(limbs::div_halves(hi, lo, den), expected, "{num:#x} / {den:#x}");
+        }
     }
 
     #[test]
-    fn i256_sub_test() {
-        assert_eq!((i256::from(-1), false), i256::from(1).overflowing_sub(i256::from(2)));
-        assert_eq!((i256::from(1), false), i256::from(3).overflowing_sub(i256::from(2)));
-        assert_eq!((i256::from(-3), false), i256::from(-4).overflowing_sub(i256::from(-1)));
-        assert_eq!((i256::from(0), false), i256::from(0).overflowing_add(i256::from(0)));
-        assert_eq!((i256::MIN, false), i256::from(0).overflowing_sub(i256::MIN));
-        assert_eq!((i256::ZERO, false), i256::MIN.overflowing_sub(i256::MIN));
-        assert_eq!((-i256::ONE, false), i256::MAX.overflowing_sub(i256::MIN));
-        assert_eq!((i256::MAX, true), (-i256::from(2)).overflowing_sub(i256::MAX));
+    fn limbs_match_reference() {
+        check_limbs::<1>(5_000);
+        check_limbs::<2>(5_000);
+        check_limbs::<3>(5_000);
+        check_limbs::<4>(20_000);
+        check_limbs::<5>(5_000);
+        check_limbs::<8>(5_000);
+        check_limbs::<16>(2_000);
     }
 
     #[test]
-    fn i256_neg_test() {
-        assert_eq!(i256::from(1), -i256::from(-1));
-        assert_eq!(i256::from(-1), -i256::from(1));
-        assert_eq!(i256::from(0), -i256::from(0));
-        assert_eq!(i256::MIN + 1, -i256::MAX);
+    fn division_corner_cases() {
+        const HIGH: u64 = 1 << 63;
+        // The quotient digit estimate is one too large and the divisor must be
+        // added back (step D6 of the algorithm, which random numbers
+        // practically never reach).
+        let cases: [([u64; 4], [u64; 4]); 8] = [
+            ([3, 0, HIGH, 0], [1, 0, HIGH >> 2, 0]),
+            ([0, u64::MAX - 1, HIGH, 0], [u64::MAX, HIGH, 0, 0]),
+            ([0, 0, HIGH, HIGH - 1], [1, 0, HIGH, 0]),
+            ([0, 0, 0, HIGH], [1, 0, HIGH, 0]),
+            ([u64::MAX, 0, u64::MAX, HIGH], [u64::MAX, 0, HIGH, 0]),
+            ([0, 0, 1, 0], [u64::MAX, 0, 0, 0]),
+            ([u64::MAX; 4], [u64::MAX, u64::MAX, 0, 0]),
+            ([u64::MAX; 4], [1, 0, 0, 0]),
+        ];
+        for (num, den) in cases {
+            assert_eq!(
+                limbs::div_rem(&num, &den),
+                div_rem_reference(&num, &den),
+                "{num:x?} / {den:x?}"
+            );
+        }
+        assert_eq!(limbs::div_rem(&cases[0].0, &cases[0].1), ([3, 0, 0, 0], [0, 0, HIGH >> 2, 0]));
     }
 
     #[test]
-    #[should_panic]
-    fn i256_neg_min_test() {
-        assert_eq!(-i256::MIN, -i256::MIN);
-    }
+    fn signed_division_properties() {
+        let mut rng = Rng(7);
+        for _ in 0..5_000 {
+            let (a, b) = (i256::from_inner(rng.limbs()), i256::from_inner(rng.limbs()));
+            if b.is_zero() || (a == i256::MIN && b == -i256::ONE) {
+                continue;
+            }
+            let (quot, rem) = a.div_rem(b).unwrap();
+            assert_eq!(quot * b + rem, a);
+            assert!(rem.unsigned_abs() < b.unsigned_abs());
+            assert!(rem.is_zero() || rem.is_negative() == a.is_negative());
+            assert!(quot.is_zero() || quot.is_negative() == (a.is_negative() != b.is_negative()));
 
-    #[test]
-    fn i256_mul_test() {
-        assert_eq!((i256::from(-12), false), i256::from(3).overflowing_mul(i256::from(-4)));
-        assert_eq!((i256::from(6), false), i256::from(2).overflowing_mul(i256::from(3)));
-        assert_eq!((i256::from(30), false), i256::from(-6).overflowing_mul(i256::from(-5)));
-        assert_eq!((i256::from(-2), true), i256::MAX.overflowing_mul(i256::from(2)));
-        assert_eq!((i256::ZERO, true), i256::MIN.overflowing_mul(i256::from(2)));
-        assert_eq!((i256::ONE, true), i256::MAX.overflowing_mul(i256::MAX));
-    }
-
-    #[test]
-    fn i256_arithmetic_shr_test() {
-        assert_eq!(i256::from(-1), i256::from(-1) >> 1);
-        assert_eq!(i256::from(-1), i256::from(-2) >> 1);
-        assert_eq!(i256::from(1), i256::from(2) >> 1);
-        assert_eq!(i256::from(1), i256::from(2) >> 1);
-        assert_eq!(i256::from(0), i256::from(1) >> 1);
-    }
-
-    #[test]
-    fn i256_bits_required_test() {
-        assert_eq!(i256::from(255).bits_required(), 9);
-        assert_eq!(i256::from(256).bits_required(), 10);
-        assert_eq!(i256::from(300).bits_required(), 10);
-        assert_eq!(i256::from(60000).bits_required(), 17);
-        assert_eq!(i256::from(70000).bits_required(), 18);
-        assert_eq!(i256::from(-128).bits_required(), 8);
-        assert_eq!(i256::from(-129).bits_required(), 9);
-        assert_eq!(i256::from(0).bits_required(), 1);
-        assert_eq!(i256::from(-1).bits_required(), 1);
-        assert_eq!(i256::from(-2).bits_required(), 2);
-        assert_eq!(i256::MIN.bits_required(), 256);
-        assert_eq!(i256::MAX.bits_required(), 256);
-    }
-
-    #[test]
-    fn i256_div_test() {
-        assert_eq!(Ok((i256::from(3), i256::from(1))), i256::from(7).div_rem(i256::from(2i32)));
-        assert_eq!(Ok((i256::from(-3), i256::from(1))), i256::from(7).div_rem(i256::from(-2i128)));
-        assert_eq!(Ok((i256::from(-3), i256::from(-1))), i256::from(-7).div_rem(i256::from(2)));
-        assert_eq!(Ok((i256::from(3), i256::from(-1))), i256::from(-7).div_rem(i256::from(-2)));
-        assert!(i256::div_rem(i256::MAX, i256::ZERO).is_err());
-    }
-
-    #[test]
-    fn overflowing_div_est() {
-        assert_eq!((i256::from(3), false), i256::from(7).overflowing_div(i256::from(2i32)));
-        assert_eq!((i256::MIN, true), i256::MIN.overflowing_div(i256::from(-1)));
-        let res = std::panic::catch_unwind(|| i256::overflowing_div(i256::MAX, i256::ZERO));
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn wrapping_div_est() {
-        assert_eq!(i1024::from(3), i1024::from(7).wrapping_div(2));
-        assert_eq!(i512::MIN, i512::MIN.wrapping_div(-1));
-        let res = std::panic::catch_unwind(|| i256::wrapping_div(i256::MAX, i256::ZERO));
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn checked_div_est() {
-        assert_eq!(Some(i1024::from(3)), i1024::from(7).checked_div(2));
-        assert_eq!(Some(i512::MAX), i512::MAX.checked_div(1));
-        assert_eq!(Some(i512::MIN + 1), i512::MAX.checked_div(-1));
-        assert_eq!(None, i512::MIN.checked_div(-1));
-        assert_eq!(None, i512::MAX.checked_div(0));
-    }
-
-    #[test]
-    fn saturating_div_test() {
-        assert_eq!(i256::from(5).saturating_div(2), i256::from(2));
-        assert_eq!(i256::MAX.saturating_div(-i256::ONE), i256::MIN + 1);
+            let (quot, rem) = a.div_rem_euclid(b).unwrap();
+            assert_eq!(quot.wrapping_mul(b).wrapping_add(rem), a);
+            assert!(!rem.is_negative() && rem.unsigned_abs() < b.unsigned_abs());
+        }
+        assert_eq!(i256::MIN.div_rem(-1), Err(DivError::Overflow));
+        assert_eq!(i256::MIN.div_rem(1), Ok((i256::MIN, i256::ZERO)));
+        assert_eq!(i256::MIN.div_rem(i256::MIN), Ok((i256::ONE, i256::ZERO)));
+        assert_eq!(i256::MAX.div_rem(i256::MIN), Ok((i256::ZERO, i256::MAX)));
+        assert_eq!(i256::MIN.div_rem(i256::MAX), Ok((-i256::ONE, -i256::ONE)));
+        assert_eq!(i256::MIN / 2, i256::MIN >> 1);
+        assert_eq!(i256::from(-1) / 5, i256::ZERO);
+        assert_eq!(i256::from(-7) % 100, i256::from(-7));
+        assert_eq!(i256::from(-7).div_euclid(i256::MIN), i256::ONE);
+        assert_eq!(i256::from(-7).rem_euclid(i256::MIN), i256::MAX - 6);
+        assert_eq!(i512::MAX.checked_div(-1), Some(i512::MIN + 1));
+        assert_eq!(i1024::MIN.overflowing_div_euclid(-1), (i1024::MIN, true));
+        assert_eq!(i1024::MIN.overflowing_rem_euclid(-1), (i1024::ZERO, true));
         assert_eq!(i256::MIN.saturating_div(-1), i256::MAX);
     }
 
     #[test]
-    fn overflowing_rem_est() {
-        assert_eq!((i256::from(1), false), i256::from(7).overflowing_rem(i256::from(2i32)));
-        assert_eq!((i256::ZERO, true), i256::MIN.overflowing_rem(i256::from(-1)));
-        let res = std::panic::catch_unwind(|| i256::overflowing_rem(i256::MAX, i256::ZERO));
-        assert!(res.is_err());
+    fn constants() {
+        assert_eq!((u256::BITS, u512::BITS, u1024::BITS), (256, 512, 1024));
+        assert_eq!((i256::BYTES, i512::BYTES, i1024::BYTES), (32, 64, 128));
+        assert_eq!(u256::MIN.into_inner(), [0; 4]);
+        assert_eq!(u1024::MAX.into_inner(), [u64::MAX; 16]);
+        assert_eq!(i256::MIN.into_inner(), [0, 0, 0, 1 << 63]);
+        assert_eq!(i256::MAX.into_inner(), [u64::MAX, u64::MAX, u64::MAX, u64::MAX >> 1]);
+        assert_eq!(u512::ZERO, u512::default());
+        assert_eq!(i512::ONE.as_inner(), &[1, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(i256::MIN, i256::ONE << 255);
+        assert_eq!(i256::MAX, !i256::MIN);
+        assert_eq!(i256::MIN.wrapping_sub(1), i256::MAX);
+        assert_eq!(u256::MAX.wrapping_add(1u8), u256::MIN);
     }
 
     #[test]
-    fn wrapping_rem_test() {
-        assert_eq!(i1024::from(1), i1024::from(7).wrapping_rem(2));
-        assert_eq!(i512::ZERO, i512::MIN.wrapping_rem(-1));
-        let res = std::panic::catch_unwind(|| i256::wrapping_rem(i256::MAX, i256::ZERO));
-        assert!(res.is_err());
+    fn arithmetic_vectors() {
+        let init = u256::from(0xDEADBEEFDEADBEEFu64);
+        let add = init + init;
+        assert_eq!(add, u256::from_inner([0xBD5B7DDFBD5B7DDE, 1, 0, 0]));
+        let shl = add << 88;
+        assert_eq!(shl, u256::from_inner([0, 0xDFBD5B7DDE000000, 0x1BD5B7D, 0]));
+        let shr = shl >> 40;
+        assert_eq!(shr, u256::from_inner([0x7DDE000000000000, 0x0001BD5B7DDFBD5B, 0, 0]));
+        let mut incr = shr;
+        incr += 1u32;
+        assert_eq!(incr, u256::from_inner([0x7DDE000000000001, 0x0001BD5B7DDFBD5B, 0, 0]));
+        let sub = incr - init;
+        assert_eq!(sub, u256::from_inner([0x9F30411021524112, 0x0001BD5B7DDFBD5A, 0, 0]));
+        let mult = sub * 300u32;
+        assert_eq!(mult, u256::from_inner([0x8C8C3EE70C644118, 0x0209E7378231E632, 0, 0]));
+        assert_eq!(mult / 300u64, sub);
+        assert_eq!((mult * 39842u64 + 9054u64) % 39842u64, u256::from(9054u64));
+
+        let mut pow = init;
+        for _ in 0..6 {
+            pow *= 0xFFFFFFFFu32;
+        }
+        let expected =
+            [0xA69B4555DEADBEEF, 0xA69B455CD41BB662, 0xD41BB662A69B4550, 0xDEADBEEAA69B455C];
+        assert_eq!(pow, u256::from_inner(expected));
+        let square = init * init;
+        assert_eq!(square, u256::from_inner([0x048D1354216DA321, 0xC1B1CD13A4D13D46, 0, 0]));
+        let expected =
+            [0xF4E166AAD40D0A41, 0xF5CF7F3618C2C886, 0x4AFCFF6F0375C608, 0x928D92B4D7F5DF33];
+        assert_eq!(square * square, u256::from_inner(expected));
+
+        assert_eq!(u256::MAX.overflowing_add(u256::MAX), (u256::MAX - 1u8, true));
+        assert_eq!(i256::MAX.overflowing_mul(2), (i256::from(-2), true));
+        assert_eq!(i256::MIN.overflowing_mul(2), (i256::ZERO, true));
+        assert_eq!(i256::MAX.overflowing_mul(i256::MAX), (i256::ONE, true));
+        assert_eq!(i256::MIN.overflowing_mul(1), (i256::MIN, false));
+        assert_eq!(i256::MIN.overflowing_mul(-1), (i256::MIN, true));
+        assert_eq!(i256::from(-4) >> 2, i256::from(-1));
+        assert_eq!(i256::MIN >> 255, i256::from(-1));
+        assert_eq!(u256::MAX >> 255, u256::ONE);
+        assert_eq!(u1024::ONE << 1023 >> 1023, u1024::ONE);
     }
 
     #[test]
-    fn checked_rem_test() {
-        assert_eq!(Some(i1024::from(1)), i1024::from(7).checked_rem(2));
-        assert_eq!(None, i512::MIN.checked_rem(-1));
-        assert_eq!(None, i512::MAX.checked_rem(0));
+    fn conversions() {
+        assert_eq!(u256::from(true), u256::ONE);
+        assert_eq!(i256::from(false), i256::ZERO);
+        assert_eq!(u256::from(u128::MAX).into_inner(), [u64::MAX, u64::MAX, 0, 0]);
+        assert_eq!(i256::from(u128::MAX).into_inner(), [u64::MAX, u64::MAX, 0, 0]);
+        assert_eq!(i256::from(i128::MIN).into_inner(), [0, 1 << 63, u64::MAX, u64::MAX]);
+        assert_eq!(i256::from(-1i8), !i256::ZERO);
+        assert_eq!(i1024::from(-2i64) + 1u64, i1024::from(-1i16));
+        assert_eq!(i256::from(-5).unsigned_abs(), u256::from(5u8));
+        assert_eq!(i256::MIN.unsigned_abs(), u256::ONE << 255);
+        assert_eq!(u256::MAX.cast_signed(), i256::from(-1));
+        assert_eq!(i256::from(-1).cast_unsigned(), u256::MAX);
+
+        assert_eq!(u512::from(u256::MAX).into_inner(), [
+            u64::MAX,
+            u64::MAX,
+            u64::MAX,
+            u64::MAX,
+            0,
+            0,
+            0,
+            0
+        ]);
+        assert_eq!(u1024::from(u256::from(30u8)), u1024::from(30u8));
+        assert_eq!(u1024::from(u512::MAX) >> 448, u1024::from(u64::MAX));
+        assert_eq!(i512::from(i256::from(-30)), i512::from(-30));
+        assert_eq!(i1024::from(i256::MIN), -(i1024::ONE << 255));
+        assert_eq!(i1024::from(i512::MAX), (i1024::ONE << 511) - 1);
     }
 
     #[test]
-    fn div_euclid_test() {
-        assert_eq!(i1024::from(1), i1024::from(7).div_euclid(4));
-        assert_eq!(i1024::from(-1), i1024::from(7).div_euclid(-4));
-        assert_eq!(i1024::from(-2), i1024::from(-7).div_euclid(4));
-        assert_eq!(i1024::from(2), i1024::from(-7).div_euclid(-4));
+    fn bytes() {
+        let be = [
+            0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed,
+            0xfe, 0xed, 0xba, 0xad, 0xf0, 0x0d, 0xde, 0xfa, 0xce, 0xda, 0x11, 0xfe, 0xd2, 0xba,
+            0xd1, 0xc0, 0xff, 0xe0,
+        ];
+        let mut le = be;
+        le.reverse();
+        let val = u256::from_inner([
+            0x11fed2bad1c0ffe0,
+            0xbaadf00ddefaceda,
+            0xdeafbabe2bedfeed,
+            0x1badcafedeadbeef,
+        ]);
+        assert_eq!(u256::from_be_bytes(be), val);
+        assert_eq!(u256::from_le_bytes(le), val);
+        assert_eq!(u256::from_be_slice(&be), Ok(val));
+        assert_eq!(u256::from_le_slice(&le), Ok(val));
+        assert_eq!(val.to_be_bytes(), be);
+        assert_eq!(val.to_le_bytes(), le);
+        assert_eq!(i256::from_be_bytes(be).cast_unsigned(), val);
+        assert_eq!(i256::from(-2).to_be_bytes()[24..], [
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe
+        ]);
+        assert_eq!(u1024::from_le_bytes(u1024::MAX.to_le_bytes()), u1024::MAX);
+        assert_eq!(i512::from_be_bytes(i512::MIN.to_be_bytes()), i512::MIN);
+        assert_eq!(
+            U128::from_le_slice(&le[..16]),
+            Ok(u(u128::from_le_bytes(*le.first_chunk().unwrap())))
+        );
+        assert_eq!(
+            U128::from_be_slice(&be[..16]),
+            Ok(u(u128::from_be_bytes(*be.first_chunk().unwrap())))
+        );
+
+        for len in [0, 1, 8, 31, 33, 64] {
+            let err = ParseLengthError {
+                actual: len,
+                expected: 32,
+            };
+            assert_eq!(u256::from_be_slice(&[0; 64][..len]), Err(err));
+            assert_eq!(i256::from_le_slice(&[0; 64][..len]), Err(err));
+        }
     }
 
     #[test]
-    fn overflowing_div_euclid_test() {
-        assert_eq!((u512::from(2u8), false), u512::from(5u8).overflowing_div_euclid(2u8));
-        assert_eq!((i1024::MIN, true), i1024::MIN.overflowing_div_euclid(-1));
+    fn formatting() {
+        let val = u256::from_inner([0, 0xAAAAAAAABBBBBBBB, 0x0000000111122222, 0]);
+        assert_eq!(format!("{val:X}"), "111122222AAAAAAAABBBBBBBB0000000000000000");
+        assert_eq!(format!("{val:#x}"), "0x111122222aaaaaaaabbbbbbbb0000000000000000");
+        assert_eq!(
+            format!("{:#066x}", u256::from(0xDEADBEEFu32)),
+            format!("0x{:0>64}", "deadbeef")
+        );
+        assert_eq!(format!("{:x}", i256::from(-1)), "f".repeat(64));
+        assert_eq!(format!("{:o}", u256::MAX), format!("17{}", "7".repeat(84)));
+        assert_eq!(format!("{:b}", u1024::MAX), "1".repeat(1024));
+        assert_eq!(format!("{:b}", i1024::MIN), format!("1{}", "0".repeat(1023)));
+        assert_eq!(format!("{:w^#7X}", u256::ONE), "ww0x1ww");
+        assert_eq!(
+            format!("{:5}|{:<5}|{:05}", i256::from(-1), i256::ONE, i256::from(-1)),
+            "   -1|1    |-0001"
+        );
+
+        let max = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+        assert_eq!(u256::MAX.to_string(), max);
+        assert_eq!(format!("{:?}", u256::MAX), max);
+        let min = "-57896044618658097711785492504343953926634992332820282019728792003956564819968";
+        assert_eq!(i256::MIN.to_string(), min);
+        assert_eq!(i256::MAX.to_string(), min[1..77].to_owned() + "7");
+        assert_eq!(u256::from(10u64.pow(19)).to_string(), "10000000000000000000");
+        assert_eq!(
+            (u256::from(10u64.pow(19)) * 10u64.pow(19)).to_string(),
+            format!("1{}", "0".repeat(38))
+        );
+        assert_eq!(u1024::MAX.to_string().len(), 309);
+        assert_eq!(i1024::MIN.to_string().len(), 309);
     }
 
     #[test]
-    fn wrapping_div_euclid_test() {
-        assert_eq!(u256::from(10u8), u256::from(100u8).wrapping_div_euclid(10u8));
-        assert_eq!(i1024::MIN, i1024::MIN.wrapping_div_euclid(-1));
+    fn parsing() {
+        use IntErrorKind::*;
+
+        let max = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+        assert_eq!(max.parse(), Ok(u256::MAX));
+        assert_eq!(u256::from_str_radix(&"f".repeat(64), 16), Ok(u256::MAX));
+        assert_eq!(u256::from_str_radix(&"F".repeat(65), 16), Err(ParseIntError(PosOverflow)));
+        assert_eq!((max[..77].to_owned() + "6").parse::<u256>(), Err(ParseIntError(PosOverflow)));
+        assert_eq!(format!("{max}0").parse::<u256>(), Err(ParseIntError(PosOverflow)));
+        assert_eq!(format!("-{max}").parse(), Ok(-u512::from(u256::MAX).cast_signed()));
+        for val in [i256::MIN, i256::MIN + 1, -i256::ONE, i256::ZERO, i256::ONE, i256::MAX] {
+            assert_eq!(val.to_string().parse(), Ok(val));
+            assert_eq!(i256::from_str_radix(&format!("{val:b}"), 2).is_ok(), !val.is_negative());
+        }
+        let min = "57896044618658097711785492504343953926634992332820282019728792003956564819968";
+        assert_eq!(min.parse::<i256>(), Err(ParseIntError(PosOverflow)));
+        assert_eq!(format!("-{min}").parse(), Ok(i256::MIN));
+        assert_eq!(format!("-{}9", &min[..76]).parse::<i256>(), Err(ParseIntError(NegOverflow)));
+        assert_eq!(u1024::from_str_radix("zz", 36), Ok(u1024::from(1295u16)));
+        assert_eq!(i256::from_str_radix("-Zz", 36), Ok(i256::from(-1295)));
+
+        for (src, kind) in [
+            ("", Empty),
+            ("+", InvalidDigit),
+            ("-", InvalidDigit),
+            ("--1", InvalidDigit),
+            ("+-1", InvalidDigit),
+            ("1 ", InvalidDigit),
+            (" 1", InvalidDigit),
+            ("1_000", InvalidDigit),
+            ("0x10", InvalidDigit),
+            ("12a", InvalidDigit),
+            ("١", InvalidDigit),
+            ("1é", InvalidDigit),
+        ] {
+            assert_eq!(src.parse::<i256>(), Err(ParseIntError(kind)), "{src:?}");
+            assert_eq!(src.parse::<u256>(), Err(ParseIntError(kind)), "{src:?}");
+        }
+        assert_eq!("-1".parse::<u256>(), Err(ParseIntError(InvalidDigit)));
+        assert_eq!("-0".parse::<u256>(), Err(ParseIntError(InvalidDigit)));
+        assert_eq!("-0".parse(), Ok(i256::ZERO));
+        assert_eq!("+0".parse(), Ok(u256::ZERO));
+        assert_eq!("+00012".parse(), Ok(u256::from(12u8)));
+        assert_eq!(i256::from_str_radix("2", 2), Err(ParseIntError(InvalidDigit)));
     }
 
     #[test]
-    fn checked_div_euclid_test() {
-        assert_eq!(None, u256::from(100u8).checked_div_euclid(0u8));
-        assert_eq!(None, i1024::MIN.checked_div_euclid(-1));
-        assert_eq!(Some(i1024::from(-3)), i1024::from(6).checked_div_euclid(-2));
-    }
-
-    #[test]
-    fn rem_euclid_test() {
-        assert_eq!(i1024::from(3), i1024::from(7).rem_euclid(4));
-        assert_eq!(i1024::from(1), i1024::from(-7).rem_euclid(4));
-        assert_eq!(i1024::from(3), i1024::from(7).rem_euclid(-4));
-        assert_eq!(i1024::from(1), i1024::from(-7).rem_euclid(-4));
-    }
-
-    #[test]
-    fn overflowing_rem_euclid_test() {
-        assert_eq!((u512::from(1u8), false), u512::from(5u8).overflowing_rem_euclid(2u8));
-        assert_eq!((i1024::ZERO, true), i1024::MIN.overflowing_rem_euclid(-1));
-    }
-
-    #[test]
-    fn wrapping_rem_euclid_test() {
-        assert_eq!(u256::ZERO, u256::from(100u8).wrapping_rem_euclid(10u8));
-        assert_eq!(i1024::ZERO, i1024::MIN.wrapping_rem_euclid(-1));
-    }
-
-    #[test]
-    fn checked_rem_euclid_test() {
-        assert_eq!(None, u256::from(100u8).checked_rem_euclid(0u8));
-        assert_eq!(None, i1024::MIN.checked_rem_euclid(-1));
-        assert_eq!(Some(i1024::from(1)), i1024::from(5).checked_rem_euclid(2));
-    }
-
-    #[test]
-    fn i256_cmp_test() {
-        assert!(i256::ZERO < i256::ONE);
-        assert!(-i256::ONE < i256::ZERO);
-        assert!(i256::MIN < i256::MAX);
-        assert!(i256::MIN < i256::ZERO);
-        assert!(i256::from(200) < i256::from(10000000));
-        assert!(i256::from(-3) < i256::from(87));
-    }
-
-    #[test]
-    fn u256_to_u512_test() {
-        assert_eq!(u512::from(u256::from(30u8)), u512::from(30u8));
-    }
-
-    #[test]
-    fn leading_zeros_test() {
+    fn bits_required() {
+        assert_eq!(u256::ZERO.bits_required(), 0);
+        assert_eq!(u256::from(255u8).bits_required(), 8);
+        assert_eq!(u256::from(256u16).bits_required(), 9);
+        assert_eq!((u256::from(70000u32) << 200).bits_required(), 217);
+        assert_eq!(u256::from(70000u32).unbounded_shl(300).bits_required(), 0);
+        assert_eq!(u256::MAX.bits_required(), 256);
+        assert_eq!(i256::ZERO.bits_required(), 1);
+        assert_eq!(i256::from(255).bits_required(), 9);
+        assert_eq!(i256::from(-128).bits_required(), 8);
+        assert_eq!(i256::from(-129).bits_required(), 9);
+        assert_eq!(i256::from(-1).bits_required(), 1);
+        assert_eq!(i256::MIN.bits_required(), 256);
+        assert_eq!(i256::MAX.bits_required(), 256);
         assert_eq!(u512::ZERO.leading_zeros(), 512);
-        assert_eq!(u512::ZERO.leading_ones(), 0);
         assert_eq!(u512::ZERO.trailing_zeros(), 512);
-        assert_eq!(u512::ZERO.trailing_ones(), 0);
-        assert_eq!(u512::MAX.leading_zeros(), 0);
         assert_eq!(u512::MAX.leading_ones(), 512);
-        assert_eq!(u512::MAX.trailing_zeros(), 0);
         assert_eq!(u512::MAX.trailing_ones(), 512);
-        assert_eq!(u256::from(32u8).leading_zeros(), 256 - 6);
-        assert_eq!(u256::from(32u8).leading_ones(), 0);
-        assert_eq!(u256::from(32u8).trailing_zeros(), 5);
-        assert_eq!(u256::from(32u8).trailing_ones(), 0);
-        assert_eq!(i256::from(-2).leading_zeros(), 0);
         assert_eq!(i256::from(-2).leading_ones(), 255);
-        assert_eq!(i256::from(-2).trailing_zeros(), 1);
-        assert_eq!(i256::from(-2).trailing_ones(), 0);
+        assert!(u256::from(10u8).bit(1) && u256::from(10u8).bit(3) && !u256::from(10u8).bit(2));
+        assert!(i256::MIN.bit(255) && !i256::MAX.bit(255));
     }
 
     #[test]
-    fn checked_shl_test() {
-        assert_eq!(i256::from(4).checked_shl(0), Some(i256::from(4)));
-        assert_eq!(i256::from(4).checked_shl(1), Some(i256::from(8)));
-        assert_eq!(i256::from(1).checked_shl(255), Some(i256::MIN));
-        assert_eq!(i256::from(4).checked_shl(255), Some(i256::from(0)));
-        assert_eq!(i256::from(4).checked_shl(256), None);
-        assert_eq!(u256::from(4u8).checked_shl(0), Some(u256::from(4u8)));
-        assert_eq!(u256::from(4u8).checked_shl(1), Some(u256::from(8u8)));
-        assert_eq!(u256::from(4u8).checked_shl(255), Some(u256::from(0u8)));
-        assert_eq!(u256::from(4u8).checked_shl(256), None);
+    fn ordering() {
+        let mut vals =
+            [i256::ONE, i256::MIN, i256::from(-1), i256::MAX, i256::ZERO, i256::from(i64::MIN)];
+        vals.sort();
+        assert_eq!(vals, [
+            i256::MIN,
+            i256::from(i64::MIN),
+            i256::from(-1),
+            i256::ZERO,
+            i256::ONE,
+            i256::MAX
+        ]);
+        let small = u256::from_inner([10, 0, 0, 0]);
+        let big = u256::from_inner([0x8C8C3EE70C644118, 0x0209E7378231E632, 0, 0]);
+        let bigger = u256::from_inner([0x9C8C3EE70C644118, 0x0209E7378231E632, 0, 0]);
+        let biggest = u256::from_inner([0x5C8C3EE70C644118, 0x0209E7378231E632, 0, 1]);
+        assert!(small < big && big < bigger && bigger < biggest && biggest <= biggest);
+        assert!(u256::MAX > biggest && u256::MAX.cast_signed() < small.cast_signed());
     }
 
-    #[test]
-    fn checked_shr_test() {
-        assert_eq!(i256::from(4).checked_shr(0), Some(i256::from(4)));
-        assert_eq!(i256::from(4).checked_shr(1), Some(i256::from(2)));
-        assert_eq!(i256::from(4).checked_shr(255), Some(i256::from(0)));
-        assert_eq!(i256::from(4).checked_shr(256), None);
-        assert_eq!(u256::from(4u8).checked_shr(0), Some(u256::from(4u8)));
-        assert_eq!(u256::from(4u8).checked_shr(1), Some(u256::from(2u8)));
-        assert_eq!(u256::from(4u8).checked_shr(255), Some(u256::from(0u8)));
-        assert_eq!(u256::from(4u8).checked_shr(256), None);
+    macro_rules! panics {
+        ($($name:ident: $msg:literal => $expr:expr;)+) => {$(
+            #[test]
+            #[should_panic(expected = $msg)]
+            fn $name() { let _ = $expr; }
+        )+};
     }
 
+    panics! {
+        add_overflow: "attempt to add with overflow" => u256::MAX + 1u8;
+        add_signed_overflow: "attempt to add with overflow" => i256::MIN + i256::MIN;
+        sub_overflow: "attempt to subtract with overflow" => u256::ZERO - 1u8;
+        sub_signed_overflow: "attempt to subtract with overflow" => i256::ZERO - i256::MIN;
+        mul_overflow: "attempt to multiply with overflow" => u256::MAX * 2u8;
+        mul_signed_overflow: "attempt to multiply with overflow" => i256::MIN * -1;
+        div_by_zero: "attempt to perform division by zero" => u256::ONE / 0u8;
+        div_overflow: "attempt to perform division with overflow" => i256::MIN / -1;
+        rem_by_zero: "attempt to perform division by zero" => i256::ONE % 0;
+        rem_overflow: "attempt to perform division with overflow" => i256::MIN % -i256::ONE;
+        overflowing_div_by_zero: "attempt to perform division by zero" =>
+            i256::MAX.overflowing_div(0);
+        wrapping_rem_by_zero: "attempt to perform division by zero" => u256::MAX.wrapping_rem(0u8);
+        saturating_div_by_zero: "attempt to perform division by zero" =>
+            u256::MAX.saturating_div(0u8);
+        div_euclid_by_zero: "attempt to perform division by zero" => i256::MAX.div_euclid(0);
+        rem_euclid_overflow: "attempt to perform division with overflow" =>
+            i256::MIN.rem_euclid(-1);
+        neg_overflow: "attempt to negate with overflow" => -i256::MIN;
+        abs_overflow: "attempt to negate with overflow" => i256::MIN.abs();
+        shl_overflow: "attempt to shift left with overflow" => u256::ONE << 256;
+        shr_overflow: "attempt to shift right with overflow" => i256::ONE >> 256;
+        bit_out_of_range: "index out of bounds" => u256::ONE.bit(256);
+        radix_too_small: "radix must lie in the range" => u256::from_str_radix("0", 1);
+        radix_too_large: "radix must lie in the range" => u256::from_str_radix("0", 37);
+        limbs_div_by_zero: "attempt to divide by zero" => limbs::div_rem(&[1, 2], &[0, 0]);
+    }
+
+    #[cfg(feature = "serde")]
     #[test]
-    fn wrapping_neg_test() {
-        assert_eq!(i256::from(2).wrapping_neg(), i256::from(-2));
-        assert_eq!(i256::MIN.wrapping_neg(), i256::MIN);
-        assert_eq!(i256::from(0).wrapping_neg(), i256::from(0));
-        assert_eq!(u256::from(1u8).wrapping_neg(), u256::MAX);
+    fn serde_human_readable() {
+        let check = |val: u256, hex: &str| {
+            let json = format!("\"{hex}\"");
+            assert_eq!(serde_json::to_string(&val).unwrap(), json);
+            assert_eq!(serde_json::from_str::<u256>(&json).unwrap(), val);
+            assert_eq!(serde_json::to_string(&val.cast_signed()).unwrap(), json);
+            assert_eq!(serde_json::from_str::<i256>(&json).unwrap(), val.cast_signed());
+        };
+        check(u256::ZERO, &"0".repeat(64));
+        check(u256::from(0xDEADBEEFu32), &format!("{:0>64}", "deadbeef"));
+        check(
+            u256::from_inner([0xaa11, 0xbb22, 0xcc33, 0xdd44]),
+            "000000000000dd44000000000000cc33000000000000bb22000000000000aa11",
+        );
+        check(u256::MAX, &"f".repeat(64));
+        check(
+            u256::from_inner([
+                0xA69B4555DEADBEEF,
+                0xA69B455CD41BB662,
+                0xD41BB662A69B4550,
+                0xDEADBEEAA69B455C,
+            ]),
+            "deadbeeaa69b455cd41bb662a69b4550a69b455cd41bb662a69b4555deadbeef",
+        );
+        assert_eq!(
+            serde_json::from_str::<u256>(&format!("\"{}\"", "F".repeat(64))).unwrap(),
+            u256::MAX
+        );
+        assert_eq!(
+            serde_json::to_string(&i512::from(-2)).unwrap(),
+            format!("\"{}e\"", "f".repeat(127))
+        );
+
+        for invalid in [
+            format!("{}g", "f".repeat(63)),
+            "f".repeat(62),
+            "f".repeat(63),
+            "f".repeat(66),
+            format!("+{}", "f".repeat(63)),
+            format!("{}é", "f".repeat(62)),
+            String::new(),
+        ] {
+            assert!(serde_json::from_str::<u256>(&format!("\"{invalid}\"")).is_err(), "{invalid}");
+        }
+        assert!(serde_json::from_str::<u256>("12").is_err());
     }
 }

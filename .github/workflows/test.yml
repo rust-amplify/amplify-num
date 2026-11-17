@@ -27,13 +27,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test ${{matrix.os}}
         run: cargo test --all-features --no-fail-fast
+      - name: Test ${{matrix.os}} without features
+        run: cargo test --no-default-features --no-fail-fast
   wasm-testing:
     runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: jetli/wasm-pack-action@v0.4.0
-      - name: Add wasm32 target
-        run: rustup target add wasm32-unknown-unknown
-      - name: Test in headless Chrome
-        run: RUSTFLAGS='--cfg getrandom_backend="wasm_js"' wasm-pack test --headless --chrome --all-features
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: bytecodealliance/actions/wasmtime/setup@v1
+      # NB: the tests expecting a panic are skipped there, since WebAssembly aborts on a panic
+      - name: Test on 32-bit WebAssembly
+        run: cargo test --target wasm32-wasip1 --all-features --no-fail-fast
+      - name: Test on 32-bit WebAssembly without features
+        run: cargo test --target wasm32-wasip1 --no-default-features --no-fail-fast

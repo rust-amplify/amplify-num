@@ -19,77 +19,133 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+//! Error types.
+
+use core::error::Error;
+use core::fmt::{self, Debug, Display, Formatter};
+use core::num::IntErrorKind;
+
+/// Error indicating that a value does not fit an integer type.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-/// Error indicating that a value does not fit integer dimension
 pub struct OverflowError<T = usize> {
-    /// Integer bit size
+    /// Maximal value of the integer type.
     pub max: T,
-    /// Value that overflows
+    /// Value that overflows.
     pub value: T,
 }
 
-impl core::fmt::Display for OverflowError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "Unable to construct bit-sized integer from a value `{}` overflowing max value `{}`",
-            self.value, self.max
-        )
+impl<T: Display> Display for OverflowError<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "value {} overflows the maximum {} of the integer type", self.value, self.max)
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for OverflowError {}
+impl<T: Debug + Display> Error for OverflowError<T> {}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Error of an integer division.
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub enum DivError {
+    /// Division by zero.
     ZeroDiv,
+    /// The quotient does not fit the integer type, which happens only when the
+    /// minimal value of a signed type is divided by `-1`.
     Overflow,
 }
 
-impl core::fmt::Display for DivError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match *self {
-            DivError::ZeroDiv => write!(f, "division by zero"),
-            DivError::Overflow => write!(f, "division with overflow"),
-        }
+impl Display for DivError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            DivError::ZeroDiv => "division by zero",
+            DivError::Overflow => "division with overflow",
+        })
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for DivError {}
+impl Error for DivError {}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PositDecodeError {
-    Zero,
-    NaR,
-}
-
-impl core::fmt::Display for PositDecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match *self {
-            PositDecodeError::Zero => write!(f, "exception value zero"),
-            PositDecodeError::NaR => write!(f, "exception value NaR"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for PositDecodeError {}
-
+/// Error indicating that a slice has a length different from the required one.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-/// Invalid slice length
 pub struct ParseLengthError {
-    /// The length of the slice de-facto
+    /// The actual length of the slice.
     pub actual: usize,
-    /// The required length of the slice
+    /// The required length of the slice.
     pub expected: usize,
 }
 
-impl core::fmt::Display for ParseLengthError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "Invalid length: got {}, expected {}", self.actual, self.expected)
+impl Display for ParseLengthError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid length: got {}, expected {}", self.actual, self.expected)
     }
 }
-#[cfg(feature = "std")]
-impl std::error::Error for ParseLengthError {}
+
+impl Error for ParseLengthError {}
+
+/// Error parsing an integer from a string, carrying the same error kinds the
+/// primitive integers report.
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ParseIntError(pub IntErrorKind);
+
+impl From<core::num::ParseIntError> for ParseIntError {
+    fn from(err: core::num::ParseIntError) -> Self { Self(*err.kind()) }
+}
+
+impl Display for ParseIntError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self.0 {
+            IntErrorKind::Empty => "cannot parse integer from empty string",
+            IntErrorKind::InvalidDigit => "invalid digit found in string",
+            IntErrorKind::PosOverflow => "number too large to fit in target type",
+            IntErrorKind::NegOverflow => "number too small to fit in target type",
+            _ => "invalid integer",
+        })
+    }
+}
+
+impl Error for ParseIntError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let err = OverflowError {
+            max: 31u8,
+            value: 32,
+        };
+        assert_eq!(err.to_string(), "value 32 overflows the maximum 31 of the integer type");
+        assert_eq!(DivError::ZeroDiv.to_string(), "division by zero");
+        assert_eq!(DivError::Overflow.to_string(), "division with overflow");
+        let err = ParseLengthError {
+            actual: 31,
+            expected: 32,
+        };
+        assert_eq!(err.to_string(), "invalid length: got 31, expected 32");
+    }
+
+    #[test]
+    fn parse_int_error_matches_core() {
+        // The messages and the kinds are the same as of the primitive integers.
+        for src in ["", "x", "256", "-129", "+"] {
+            let (unsigned, signed) = (src.parse::<u8>(), src.parse::<i8>());
+            for err in [unsigned.err(), signed.err()].into_iter().flatten() {
+                let converted = ParseIntError::from(err.clone());
+                assert_eq!(converted.0, *err.kind());
+                assert_eq!(converted.to_string(), err.to_string());
+            }
+        }
+        assert_eq!(ParseIntError(IntErrorKind::Zero).to_string(), "invalid integer");
+    }
+
+    #[test]
+    fn errors_are_errors() {
+        fn assert_error<E: Error + Copy + Eq + Send + Sync + 'static>() {}
+        assert_error::<OverflowError>();
+        assert_error::<OverflowError<u64>>();
+        assert_error::<DivError>();
+        assert_error::<ParseLengthError>();
+        assert_error::<ParseIntError>();
+        #[cfg(feature = "hex")]
+        assert_error::<crate::hex::Error>();
+    }
+}
