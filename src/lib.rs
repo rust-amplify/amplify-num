@@ -31,7 +31,7 @@
 //!
 //! The functions here are designed to be fast.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #[cfg(feature = "alloc")]
 extern crate alloc;
 extern crate core;

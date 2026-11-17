@@ -34,7 +34,7 @@ harness = false
 [features]
 default = ["hex"]
 all = ["std", "hex", "serde"]
-std = []
+std = ["alloc"]
 serde = ["std", "dep:serde", "hex"]
 hex = []
 alloc = []
