@@ -1,10 +1,10 @@
 #[macro_use]
 extern crate criterion;
 
-use criterion::{black_box, Criterion};
+use criterion::{Criterion, black_box};
 
-use amplify_num::{i1024, u1024};
 use amplify_num::posit::Posit32;
+use amplify_num::{i1024, u1024};
 use softposit::P32;
 
 fn criterion_u1024(c: &mut Criterion) {
@@ -17,21 +17,11 @@ fn criterion_u1024(c: &mut Criterion) {
         0x21,
     ]);
 
-    c.bench_function("u1024_add", |c| {
-        c.iter(|| black_box(X).overflowing_add(black_box(Y)))
-    });
-    c.bench_function("u1024_sub", |c| {
-        c.iter(|| black_box(X).overflowing_sub(black_box(Y)))
-    });
-    c.bench_function("u1024_mul", |c| {
-        c.iter(|| black_box(X).overflowing_mul(black_box(Y)))
-    });
-    c.bench_function("u1024_div", |c| {
-        c.iter(|| black_box(X).overflowing_div(black_box(Y)))
-    });
-    c.bench_function("u1024_cmp_eq", |c| {
-        c.iter(|| black_box(X).cmp(black_box(&X)))
-    });
+    c.bench_function("u1024_add", |c| c.iter(|| black_box(X).overflowing_add(black_box(Y))));
+    c.bench_function("u1024_sub", |c| c.iter(|| black_box(X).overflowing_sub(black_box(Y))));
+    c.bench_function("u1024_mul", |c| c.iter(|| black_box(X).overflowing_mul(black_box(Y))));
+    c.bench_function("u1024_div", |c| c.iter(|| black_box(X).overflowing_div(black_box(Y))));
+    c.bench_function("u1024_cmp_eq", |c| c.iter(|| black_box(X).cmp(black_box(&X))));
 }
 
 fn criterion_i1024(c: &mut Criterion) {
@@ -65,66 +55,34 @@ fn criterion_i1024(c: &mut Criterion) {
     assert!(Y.is_positive());
     assert!(Z.is_negative());
 
-    c.bench_function("i1024_add", |c| {
-        c.iter(|| black_box(X).overflowing_add(black_box(Y)))
-    });
-    c.bench_function("i1024_is_positive", |c| {
-        c.iter(|| black_box(X).is_positive())
-    });
-    c.bench_function("i1024_is_negative", |c| {
-        c.iter(|| black_box(X).is_negative())
-    });
-    c.bench_function("i1024_zero_is_positive", |c| {
-        c.iter(|| black_box(i1024::ZERO).is_positive())
-    });
-    c.bench_function("i1024_zero_is_negative", |c| {
-        c.iter(|| black_box(i1024::ZERO).is_positive())
-    });
-    c.bench_function("i1024_cmp_pos", |c| {
-        c.iter(|| black_box(X).cmp(black_box(&X)))
-    });
-    c.bench_function("i1024_cmp_mixed", |c| {
-        c.iter(|| black_box(X).cmp(black_box(&Z)))
-    });
-    c.bench_function("i1024_cmp_eq", |c| {
-        c.iter(|| black_box(X).cmp(black_box(&X)))
-    });
+    c.bench_function("i1024_add", |c| c.iter(|| black_box(X).overflowing_add(black_box(Y))));
+    c.bench_function("i1024_is_positive", |c| c.iter(|| black_box(X).is_positive()));
+    c.bench_function("i1024_is_negative", |c| c.iter(|| black_box(X).is_negative()));
+    c.bench_function("i1024_zero_is_positive", |c| c.iter(|| black_box(i1024::ZERO).is_positive()));
+    c.bench_function("i1024_zero_is_negative", |c| c.iter(|| black_box(i1024::ZERO).is_positive()));
+    c.bench_function("i1024_cmp_pos", |c| c.iter(|| black_box(X).cmp(black_box(&X))));
+    c.bench_function("i1024_cmp_mixed", |c| c.iter(|| black_box(X).cmp(black_box(&Z))));
+    c.bench_function("i1024_cmp_eq", |c| c.iter(|| black_box(X).cmp(black_box(&X))));
 }
 
 fn criterion_posit32(c: &mut Criterion) {
     let x = Posit32::from(12.5);
     let y = Posit32::from(117.334);
 
-    c.bench_function("posit32_add", move |c| {
-        c.iter(|| black_box(x) + black_box(y))
-    });
-    c.bench_function("posit32_sub", move |c| {
-        c.iter(|| black_box(x) - black_box(y))
-    });
-    c.bench_function("posit32_mul", move |c| {
-        c.iter(|| black_box(x) * black_box(y))
-    });
-    c.bench_function("posit32_div", move |c| {
-        c.iter(|| black_box(x) / black_box(y))
-    });
+    c.bench_function("posit32_add", move |c| c.iter(|| black_box(x) + black_box(y)));
+    c.bench_function("posit32_sub", move |c| c.iter(|| black_box(x) - black_box(y)));
+    c.bench_function("posit32_mul", move |c| c.iter(|| black_box(x) * black_box(y)));
+    c.bench_function("posit32_div", move |c| c.iter(|| black_box(x) / black_box(y)));
 }
 
 fn criterion_softposit32(c: &mut Criterion) {
     let x = P32::from(12.5);
     let y = P32::from(117.334);
 
-    c.bench_function("softposit32_add", move |c| {
-        c.iter(|| black_box(x) + black_box(y))
-    });
-    c.bench_function("softposit32_sub", move |c| {
-        c.iter(|| black_box(x) - black_box(y))
-    });
-    c.bench_function("softposit32_mul", move |c| {
-        c.iter(|| black_box(x) * black_box(y))
-    });
-    c.bench_function("softposit32_div", move |c| {
-        c.iter(|| black_box(x) / black_box(y))
-    });
+    c.bench_function("softposit32_add", move |c| c.iter(|| black_box(x) + black_box(y)));
+    c.bench_function("softposit32_sub", move |c| c.iter(|| black_box(x) - black_box(y)));
+    c.bench_function("softposit32_mul", move |c| c.iter(|| black_box(x) * black_box(y)));
+    c.bench_function("softposit32_div", move |c| c.iter(|| black_box(x) / black_box(y)));
 }
 
 criterion_group!(

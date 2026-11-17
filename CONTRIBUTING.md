@@ -25,7 +25,7 @@ Overview
 * Read the DCO and make sure all commits are signed off, using `git commit -s`.
 * Follow the guidelines when proposing code changes (see below).
 * Write properly formatted git commits (see below).
-* Run the tests with `cargo test --workspace --all-features`.
+* Run the tests with `cargo test --all-features`.
 * Make sure you run `rustfmt` on your code (see below details).
 * Please don't file an issue to ask a question. Each repository - or  
   GitHub organization has a "Discussions" with Q&A section; please post your
@@ -166,7 +166,7 @@ If you use rustup, to lint locally you may run the following instructions:
 ```console
 rustup component add clippy
 rustup component add fmt
-cargo +stable clippy --workspace --all-features
+cargo +stable clippy --all-features
 cargo +nightly fmt --all
 ```
 

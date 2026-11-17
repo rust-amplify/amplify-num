@@ -28,7 +28,7 @@ jobs:
         with:
           components: clippy
       - name: Formatting
-        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+        run: cargo clippy --all-features --all-targets -- -D warnings
   doc:
     runs-on: ubuntu-latest
     steps:
@@ -37,4 +37,4 @@ jobs:
         with:
           components: rust-docs
       - name: Formatting
-        run: cargo +nightly doc --workspace --all-features
+        run: cargo +nightly doc --all-features
