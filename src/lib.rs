@@ -44,7 +44,6 @@ mod bigint;
 pub mod error;
 #[cfg(feature = "hex")]
 pub mod hex;
-pub mod posit;
 mod smallint;
 
 pub use bigint::{i256, i512, i1024, u256, u512, u1024};

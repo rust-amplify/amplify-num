@@ -4,7 +4,6 @@ version = "0.6.0"
 description = "Amplifying numeric types: big-sized and bit-sized integers"
 authors = [
     "Dr. Maxim Orlovsky <orlovsky@ubideco.org>",
-    "Yudai Kiyofuji <own7000hr@gmail.com>"
 ]
 keywords = ["integers", "num", "wrap", "patterns"]
 categories = ["mathematics", "no-std", "embedded", "science"]
