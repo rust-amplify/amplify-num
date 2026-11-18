@@ -7,10 +7,23 @@ keywords = ["integers", "num", "bigint", "no_std", "embedded"]
 categories = ["mathematics", "no-std", "no-std::no-alloc", "embedded", "science"]
 repository = "https://github.com/rust-amplify/amplify-num"
 homepage = "https://github.com/rust-amplify"
+documentation = "https://docs.rs/amplify_num"
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2024"
 rust-version = "1.100.0"
+include = [
+    "Cargo.toml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "DCO",
+    "SECURITY.md",
+    "MANIFEST.yml",
+    "src/**",
+    "tests/**",
+    "benches/**",
+]
 
 [dependencies]
 serde = { version = "1", default-features = false, optional = true }
@@ -30,6 +43,22 @@ alloc = ["serde?/alloc"]
 hex = []
 serde = ["dep:serde", "hex"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
+non_ascii_idents = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+trivial_numeric_casts = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[lints.clippy]
+dbg_macro = "warn"
+mem_forget = "warn"
+todo = "warn"
+undocumented_unsafe_blocks = "warn"
+unimplemented = "warn"

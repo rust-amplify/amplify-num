@@ -12,6 +12,9 @@ on:
       - develop
       - 'v[0-9]+.*'
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -23,24 +26,33 @@ jobs:
       matrix:
         os: [ ubuntu-24.04, ubuntu-24.04-arm, ubuntu-latest, macos-15-intel, macos-latest, windows-11-arm, windows-latest ]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Test ${{matrix.os}}
-        run: cargo test --all-features --no-fail-fast
-      - name: Test ${{matrix.os}} without features
-        run: cargo test --no-default-features --no-fail-fast
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: stable
+      - name: Default feature tests on ${{matrix.os}}
+        run: cargo test --locked --no-fail-fast
+      - name: No default feature tests on ${{matrix.os}}
+        run: cargo test --locked --no-default-features --no-fail-fast
+      - name: Tests with `alloc` only on ${{matrix.os}}
+        run: cargo test --locked --no-default-features --features alloc --no-fail-fast
+      - name: Tests with `serde` only on ${{matrix.os}}
+        run: cargo test --locked --no-default-features --features serde --no-fail-fast
+      - name: All feature tests on ${{matrix.os}}
+        run: cargo test --locked --all-features --no-fail-fast
   wasm-testing:
     runs-on: ubuntu-latest
     env:
       CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
+          toolchain: stable
           targets: wasm32-wasip1
-      - uses: bytecodealliance/actions/wasmtime/setup@v1
-      # NB: the tests expecting a panic are skipped there, since WebAssembly aborts on a panic
+      - uses: bytecodealliance/actions/wasmtime/setup@9152e710e9f7182e4c29ad218e4f335a7b203613 # v1.1.3
+      # NB: the tests expecting a panic are skipped there, since WebAssembly aborts on a panic.
       - name: Test on 32-bit WebAssembly
-        run: cargo test --target wasm32-wasip1 --all-features --no-fail-fast
+        run: cargo test --locked --target wasm32-wasip1 --all-features --no-fail-fast
       - name: Test on 32-bit WebAssembly without features
-        run: cargo test --target wasm32-wasip1 --no-default-features --no-fail-fast
+        run: cargo test --locked --target wasm32-wasip1 --no-default-features --no-fail-fast

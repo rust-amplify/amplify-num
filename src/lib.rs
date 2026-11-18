@@ -54,3 +54,7 @@ pub mod traits;
 pub use bigint::{BigInt, i256, i512, i1024, u256, u512, u1024};
 pub use smallint::{u1, u2, u3, u4, u5, u6, u7, u10, u12, u14, u20, u24, u40, u48, u56};
 pub use traits::*;
+
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+mod readme {}

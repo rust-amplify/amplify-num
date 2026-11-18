@@ -455,6 +455,10 @@ macro_rules! smallint_into {
     ($($name:ident)+ => $prims:tt) => { $(smallint_into!(@ $name => $prims);)+ };
     (@ $name:ident => [$($prim:ident)+]) => {$(
         impl From<$name> for $prim {
+            #[allow(
+                trivial_numeric_casts,
+                reason = "macro generates identity and widening casts uniformly"
+            )]
             fn from(value: $name) -> Self {
                 const { assert!($name::MAX.0 as u128 <= $prim::MAX as u128, "lossy conversion") };
                 value.0 as $prim
@@ -553,6 +557,10 @@ mod tests {
     macro_rules! model_tests {
         ($($test:ident: $name:ident($inner:ident) $to_inner:ident;)+) => {$(
             #[test]
+            #[allow(
+                trivial_numeric_casts,
+                reason = "macro instantiates tests for u64 inner types too"
+            )]
             fn $test() {
                 const MAX: i128 = $name::MAX.0 as i128;
                 let small = |val: i128| $name::with(val as $inner);
