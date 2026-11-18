@@ -86,6 +86,18 @@ macro_rules! smallint {
                 }
                 Ok((Self(self.0 / rhs), Self(self.0 % rhs)))
             }
+
+            /// Parses the integer from a string of digits in the given `radix`.
+            ///
+            /// # Panics
+            ///
+            /// If `radix` is not in the range from 2 to 36.
+            pub fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError> {
+                assert!((2..=36).contains(&radix), "radix must lie in the range `2..=36`");
+
+                Self::try_from($inner::from_str_radix(src, radix)?)
+                    .map_err(|_| ParseIntError(IntErrorKind::PosOverflow))
+            }
         }
 
         smallint_trait_impls!($name, $inner);
@@ -105,8 +117,7 @@ macro_rules! smallint {
             type Err = ParseIntError;
 
             fn from_str(s: &str) -> Result<Self, ParseIntError> {
-                Self::try_from(s.parse::<$inner>()?)
-                    .map_err(|_| ParseIntError(IntErrorKind::PosOverflow))
+                Self::from_str_radix(s, 10)
             }
         }
 
@@ -558,11 +569,19 @@ mod tests {
                         let err = OverflowError { max: MAX as $inner, value: a as $inner };
                         assert_eq!(converted, Err(err));
                         assert_eq!(parsed, Err(ParseIntError(IntErrorKind::PosOverflow)));
+                        assert_eq!(
+                            $name::from_str_radix(&format!("{a:x}"), 16),
+                            Err(ParseIntError(IntErrorKind::PosOverflow))
+                        );
                         continue;
                     }
                     let (x, a) = (small(a as i128), a as i128);
                     assert_eq!((converted, parsed), (Ok(x), Ok(x)));
                     assert_eq!(x.$to_inner(), a as $inner);
+                    assert_eq!($name::from_str_radix(&format!("{x:x}"), 16), Ok(x));
+                    assert_eq!($name::from_str_radix(&format!("{x:X}"), 16), Ok(x));
+                    assert_eq!($name::from_str_radix(&format!("{x:o}"), 8), Ok(x));
+                    assert_eq!($name::from_str_radix(&format!("{x:b}"), 2), Ok(x));
                     assert_eq!(!x, small(MAX - a));
                     assert_eq!(x.wrapping_neg(), small((-a).rem_euclid(MAX + 1)));
                     assert_fmt!(x, a as $inner => "{}" "{:?}" "{:b}" "{:o}" "{:x}" "{:X}" "{:#x}"
@@ -774,6 +793,15 @@ mod tests {
         assert_eq!("31".parse(), Ok(u5::MAX));
         assert_eq!("+7".parse(), Ok(u5::with(7)));
         assert_eq!("72057594037927935".parse(), Ok(u56::MAX));
+        assert_eq!(u5::from_str_radix("1f", 16), Ok(u5::MAX));
+        assert_eq!(u5::from_str_radix("37", 8), Ok(u5::with(31)));
+        assert_eq!(u5::from_str_radix("11111", 2), Ok(u5::MAX));
+        assert_eq!(u56::from_str_radix("zz", 36), Ok(u56::with(1295)));
+        assert_eq!(u5::from_str_radix("-1", 16), Err(ParseIntError(InvalidDigit)));
+        assert_eq!(u5::from_str_radix("", 16), Err(ParseIntError(Empty)));
+        assert_eq!(u5::from_str_radix("20", 16), Err(ParseIntError(PosOverflow)));
+        assert_eq!(u5::from_str_radix("100", 16), Err(ParseIntError(PosOverflow)));
+        assert_eq!(u56::from_str_radix("100000000000000", 16), Err(ParseIntError(PosOverflow)));
         for (src, kind) in
             [("", Empty), ("x", InvalidDigit), ("-1", InvalidDigit), ("3 ", InvalidDigit)]
         {
@@ -797,6 +825,8 @@ mod tests {
 
     panics! {
         with_overflow: "provided value exceeds Self::MAX" => u4::with(16);
+        radix_too_small: "radix must lie in the range" => u4::from_str_radix("0", 1);
+        radix_too_large: "radix must lie in the range" => u4::from_str_radix("0", 37);
         add_overflow: "attempt to add with overflow" => u4::MAX + 1u8;
         add_inner_overflow: "attempt to add with overflow" => u56::with(5) + u64::MAX;
         sub_overflow: "attempt to subtract with overflow" => u4::ZERO - 1u8;
