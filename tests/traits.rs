@@ -152,7 +152,6 @@ fn division_and_negation_cover_signed_extremes() {
     assert_eq!(<i8 as NegSaturate>::saturating_neg(i8::MIN), i8::MAX);
     assert_eq!(<i8 as NegWrapping>::wrapping_neg(i8::MIN), i8::MIN);
     assert_eq!(<i256 as NegChecked>::checked_neg(i256::MIN), None);
-    assert!(std::panic::catch_unwind(|| <u8 as DivWrapping>::wrapping_div(1, 0)).is_err());
 }
 
 #[test]
@@ -176,9 +175,6 @@ fn custom_integer_arithmetic_uses_traits_directly() {
     assert_eq!(sum, u3::with(7));
     assert_eq!(small + u1::ONE, sum);
     assert_eq!(u3::ONE.wrapping_neg(), u3::MAX);
-    assert!(std::panic::catch_unwind(|| u3::MAX + u3::ONE).is_err());
-    assert!(std::panic::catch_unwind(|| u3::ONE.wrapping_div(u3::ZERO)).is_err());
-    assert!(std::panic::catch_unwind(|| u3::ONE.wrapping_rem(u3::ZERO)).is_err());
 
     let big_signed = BigInt::<1, true>::MAX;
     assert_eq!(big_signed.overflowing_add(1i8), (BigInt::<1, true>::MIN, true));
@@ -199,9 +195,6 @@ fn custom_integer_arithmetic_uses_traits_directly() {
     assert_eq!(signed_min.saturating_div(negative_one), BigInt::<1, true>::MAX);
     assert_eq!(signed_min.wrapping_rem(negative_one), BigInt::<1, true>::ZERO);
     assert_eq!(BigInt::<1, true>::ONE.checked_div(BigInt::ZERO), None);
-    assert!(
-        std::panic::catch_unwind(|| BigInt::<1, true>::ONE.wrapping_div(BigInt::ZERO)).is_err()
-    );
 }
 
 #[test]
@@ -230,21 +223,12 @@ fn mixed_operands_promote_to_the_wider_type() {
     assert_eq!(u24::ONE - 2, -1, "an unsuffixed literal is i32");
     assert_eq!(u128::MAX * u1024::ONE, u1024::from(u128::MAX));
     assert_eq!(-1isize & i512::MAX, i512::MAX);
-    assert!(std::panic::catch_unwind(|| u7::MAX * 3u8).is_err());
-    assert!(std::panic::catch_unwind(|| 1u8 - u10::ONE - u10::ONE).is_err());
 
     // The assignment keeps the type of the left operand.
     let mut small = u4::with(3);
     small += 5u8;
     small -= u2::ONE;
     assert_eq!(small, u4::with(7));
-    assert!(
-        std::panic::catch_unwind(|| {
-            let mut small = u4::MAX;
-            small += 1u8;
-        })
-        .is_err()
-    );
 }
 
 #[test]
@@ -268,4 +252,37 @@ fn nonzero_traits_preserve_the_nonzero_invariant() {
 
     let negative_min = NonZeroI8::new(i8::MIN).unwrap();
     assert_eq!(<NonZeroI8 as NegChecked>::checked_neg(negative_min), None);
+}
+
+/// Generates the tests expecting a panic with the given message. They are
+/// separate tests, since the test harness skips such tests on the targets
+/// which abort on a panic, like WebAssembly, where catching a panic within a
+/// test would abort the whole test run.
+macro_rules! panics {
+    ($($name:ident: $msg:literal => $expr:expr;)+) => {$(
+        #[test]
+        #[should_panic(expected = $msg)]
+        fn $name() { let _ = $expr; }
+    )+};
+}
+
+panics! {
+    primitive_wrapping_div_by_zero_panics: "attempt to divide by zero" =>
+        <u8 as DivWrapping>::wrapping_div(1, 0);
+    small_add_overflow_panics: "attempt to add with overflow" => u3::MAX + u3::ONE;
+    small_wrapping_div_by_zero_panics: "attempt to divide by zero" =>
+        u3::ONE.wrapping_div(u3::ZERO);
+    small_wrapping_rem_by_zero_panics:
+        "attempt to calculate the remainder with a divisor of zero" =>
+        u3::ONE.wrapping_rem(u3::ZERO);
+    big_wrapping_div_by_zero_panics: "attempt to perform division by zero" =>
+        BigInt::<1, true>::ONE.wrapping_div(BigInt::ZERO);
+    promoted_mul_overflow_panics: "attempt to multiply with overflow" => u7::MAX * 3u8;
+    promoted_sub_overflow_panics: "attempt to subtract with overflow" =>
+        1u8 - u10::ONE - u10::ONE;
+    small_add_assign_overflow_panics: "attempt to add with overflow" => {
+        let mut small = u4::MAX;
+        small += 1u8;
+        small
+    };
 }
