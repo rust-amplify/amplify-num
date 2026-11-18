@@ -464,6 +464,34 @@ smallint! {
     u56: 56 bits in u64 as to_u64;
 }
 
+impl u2 {
+    /// The value 0b10 (two) as a constant.
+    pub const TWO: u2 = u2(2);
+
+    /// The value 0b11 (three) as a constant.
+    pub const THREE: u2 = u2(3);
+}
+
+impl u3 {
+    /// The value 0b010 (two) as a constant.
+    pub const TWO: u3 = u3(2);
+
+    /// The value 0b011 (three) as a constant.
+    pub const THREE: u3 = u3(3);
+
+    /// The value 0b100 (four) as a constant.
+    pub const FOUR: u3 = u3(4);
+
+    /// The value 0b101 (five) as a constant.
+    pub const FIVE: u3 = u3(5);
+
+    /// The value 0b110 (six) as a constant.
+    pub const SIX: u3 = u3(6);
+
+    /// The value 0b111 (seven) as a constant.
+    pub const SEVEN: u3 = u3(7);
+}
+
 /// Implements the lossless conversions of each integer of the list into all
 /// larger ones, and the operations mixing them.
 macro_rules! smallint_widening {
@@ -839,6 +867,51 @@ mod tests {
         u40_model: u40(u64) to_u64;
         u48_model: u48(u64) to_u64;
         u56_model: u56(u64) to_u64;
+    }
+
+    #[test]
+    fn constants() {
+        assert_eq!([u1::ZERO, u1::ONE], [0, 1].map(u1::with));
+        assert_eq!([u2::ZERO, u2::ONE, u2::TWO, u2::THREE], [0, 1, 2, 3].map(u2::with));
+        assert_eq!(
+            [u3::ZERO, u3::ONE, u3::TWO, u3::THREE, u3::FOUR, u3::FIVE, u3::SIX, u3::SEVEN],
+            [0, 1, 2, 3, 4, 5, 6, 7].map(u3::with)
+        );
+        assert_eq!([u2::ZERO, u2::ONE, u2::TWO, u2::THREE].map(u2::to_u8), [0, 1, 2, 3]);
+        assert_eq!(
+            [u3::ZERO, u3::ONE, u3::TWO, u3::THREE, u3::FOUR, u3::FIVE, u3::SIX, u3::SEVEN]
+                .map(u3::to_u8),
+            [0, 1, 2, 3, 4, 5, 6, 7]
+        );
+
+        assert_eq!((u1::ZERO, u1::ONE), (u1::MIN, u1::MAX));
+        assert_eq!((u2::ZERO, u2::THREE), (u2::MIN, u2::MAX));
+        assert_eq!((u3::ZERO, u3::SEVEN), (u3::MIN, u3::MAX));
+
+        for raw in 0..=u2::MAX.to_u8() {
+            let matched = match u2::with(raw) {
+                u2::ZERO => 0,
+                u2::ONE => 1,
+                u2::TWO => 2,
+                u2::THREE => 3,
+                _ => unreachable!(),
+            };
+            assert_eq!(matched, raw);
+        }
+        for raw in 0..=u3::MAX.to_u8() {
+            let matched = match u3::with(raw) {
+                u3::ZERO => 0,
+                u3::ONE => 1,
+                u3::TWO => 2,
+                u3::THREE => 3,
+                u3::FOUR => 4,
+                u3::FIVE => 5,
+                u3::SIX => 6,
+                u3::SEVEN => 7,
+                _ => unreachable!(),
+            };
+            assert_eq!(matched, raw);
+        }
     }
 
     #[test]
