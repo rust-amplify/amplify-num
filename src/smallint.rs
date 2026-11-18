@@ -28,6 +28,7 @@ use core::ops::{
 use core::str::FromStr;
 
 use crate::error::{DivError, OverflowError, ParseIntError};
+use crate::promote::promote;
 use crate::traits::{
     AddChecked, AddOverflowing, AddSaturate, AddWrapping, DivChecked, DivOverflowing, DivSaturate,
     DivWrapping, MulChecked, MulOverflowing, MulSaturate, MulWrapping, NegWrapping, Number,
@@ -45,6 +46,15 @@ macro_rules! smallint {
         /// fit the type; the arithmetic traits in [`crate::traits`] provide `checked_*`,
         /// `overflowing_*`, `saturating_*` and `wrapping_*` methods for explicit control
         /// over the overflow handling.
+        ///
+        /// An operand convertible into this type uses this type as the result. Otherwise,
+        /// integer operands are accepted when one of the two types fits the other
+        /// losslessly, and the result has the wider of them, like the result of `u5 + u8`
+        /// is `u8`. The operands of which none fits the other, like `u24` and `i8`, are
+        /// rejected by the compiler as the primitive integers do. The compound assignment
+        /// operators keep the type of the left operand, accepting any right operand
+        /// convertible into the underlying primitive type, and panic if the result does
+        /// not fit the type.
         #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
         #[expect(non_camel_case_types)]
         pub struct $name($inner);
@@ -121,22 +131,30 @@ macro_rules! smallint {
             }
         }
 
-        smallint_operators! { $name($inner):
-            BitAnd bitand BitAndAssign bitand_assign =>
-                |lhs, rhs| Some(lhs & rhs), "attempt to bitand with overflow";
-            BitOr bitor BitOrAssign bitor_assign =>
-                |lhs, rhs| Some(lhs | rhs), "attempt to bitor with overflow";
-            BitXor bitxor BitXorAssign bitxor_assign =>
-                |lhs, rhs| Some(lhs ^ rhs), "attempt to bitxor with overflow";
+        smallint_operators! { $name:
+            Add add => AddChecked::checked_add, "attempt to add with overflow";
+            Sub sub => SubChecked::checked_sub, "attempt to subtract with overflow";
+            Mul mul => MulChecked::checked_mul, "attempt to multiply with overflow";
+            Div div => DivChecked::checked_div, "attempt to divide by zero";
+            Rem rem => RemChecked::checked_rem,
+                "attempt to calculate the remainder with a divisor of zero";
         }
 
-        smallint_arithmetic_operators! { $name($inner):
-            Add add AddAssign add_assign => checked_add, "attempt to add with overflow";
-            Sub sub SubAssign sub_assign => checked_sub, "attempt to subtract with overflow";
-            Mul mul MulAssign mul_assign => checked_mul, "attempt to multiply with overflow";
-            Div div DivAssign div_assign => checked_div, "attempt to divide by zero";
-            Rem rem RemAssign rem_assign => checked_rem,
+        smallint_bitwise_operators!($name: BitAnd bitand &, BitOr bitor |, BitXor bitxor ^);
+
+        smallint_assign_operators! { $name($inner):
+            AddAssign add_assign => $inner::checked_add, "attempt to add with overflow";
+            SubAssign sub_assign => $inner::checked_sub, "attempt to subtract with overflow";
+            MulAssign mul_assign => $inner::checked_mul, "attempt to multiply with overflow";
+            DivAssign div_assign => $inner::checked_div, "attempt to divide by zero";
+            RemAssign rem_assign => $inner::checked_rem,
                 "attempt to calculate the remainder with a divisor of zero";
+            BitAndAssign bitand_assign =>
+                |lhs, rhs| Some(lhs & rhs), "attempt to bitand with overflow";
+            BitOrAssign bitor_assign =>
+                |lhs, rhs| Some(lhs | rhs), "attempt to bitor with overflow";
+            BitXorAssign bitxor_assign =>
+                |lhs, rhs| Some(lhs ^ rhs), "attempt to bitxor with overflow";
         }
 
         impl Shl<u32> for $name {
@@ -209,36 +227,40 @@ macro_rules! smallint_arithmetics {
         $saturating_trait:ident::$saturating:ident,
         $wrapping_trait:ident::$wrapping:ident;
     )+) => {$(
-        impl<Rhs: Into<$inner>> $checked_trait<Rhs> for $name {
+        impl<Rhs: Into<Self>> $checked_trait<Rhs> for $name {
             type Output = Self;
 
             fn $checked(self, rhs: Rhs) -> Option<Self> {
-                self.0.$checked(rhs.into()).and_then(|val| Self::try_from(val).ok())
+                let rhs = rhs.into();
+                self.0.$checked(rhs.0).and_then(|val| Self::try_from(val).ok())
             }
         }
 
-        impl<Rhs: Into<$inner>> $overflowing_trait<Rhs> for $name {
+        impl<Rhs: Into<Self>> $overflowing_trait<Rhs> for $name {
             type Output = Self;
 
             fn $overflowing(self, rhs: Rhs) -> (Self, bool) {
-                let (val, overflow) = self.0.$overflowing(rhs.into());
+                let rhs = rhs.into();
+                let (val, overflow) = self.0.$overflowing(rhs.0);
                 (Self(val & Self::MAX.0), overflow || val > Self::MAX.0)
             }
         }
 
-        impl<Rhs: Into<$inner>> $saturating_trait<Rhs> for $name {
+        impl<Rhs: Into<Self>> $saturating_trait<Rhs> for $name {
             type Output = Self;
 
             fn $saturating(self, rhs: Rhs) -> Self {
-                Self(self.0.$saturating(rhs.into()).min(Self::MAX.0))
+                let rhs = rhs.into();
+                Self(self.0.$saturating(rhs.0).min(Self::MAX.0))
             }
         }
 
-        impl<Rhs: Into<$inner>> $wrapping_trait<Rhs> for $name {
+        impl<Rhs: Into<Self>> $wrapping_trait<Rhs> for $name {
             type Output = Self;
 
             fn $wrapping(self, rhs: Rhs) -> Self {
-                Self(self.0.$wrapping(rhs.into()) & Self::MAX.0)
+                let rhs = rhs.into();
+                Self(self.0.$wrapping(rhs.0) & Self::MAX.0)
             }
         }
     )+};
@@ -265,54 +287,54 @@ macro_rules! smallint_trait_impls {
                 MulSaturate::saturating_mul, MulWrapping::wrapping_mul;
         }
 
-        impl<Rhs: Into<$inner>> DivChecked<Rhs> for $name {
+        impl<Rhs: Into<Self>> DivChecked<Rhs> for $name {
             type Output = Self;
 
             fn checked_div(self, rhs: Rhs) -> Option<Self> {
-                self.0.checked_div(rhs.into()).map(Self)
+                self.0.checked_div(rhs.into().0).map(Self)
             }
         }
 
-        impl<Rhs: Into<$inner>> DivOverflowing<Rhs> for $name {
+        impl<Rhs: Into<Self>> DivOverflowing<Rhs> for $name {
             type Output = Self;
 
             fn overflowing_div(self, rhs: Rhs) -> (Self, bool) {
-                (Self(self.0 / rhs.into()), false)
+                (Self(self.0 / rhs.into().0), false)
             }
         }
 
-        impl<Rhs: Into<$inner>> DivSaturate<Rhs> for $name {
+        impl<Rhs: Into<Self>> DivSaturate<Rhs> for $name {
             type Output = Self;
 
-            fn saturating_div(self, rhs: Rhs) -> Self { Self(self.0 / rhs.into()) }
+            fn saturating_div(self, rhs: Rhs) -> Self { Self(self.0 / rhs.into().0) }
         }
 
-        impl<Rhs: Into<$inner>> DivWrapping<Rhs> for $name {
+        impl<Rhs: Into<Self>> DivWrapping<Rhs> for $name {
             type Output = Self;
 
-            fn wrapping_div(self, rhs: Rhs) -> Self { Self(self.0 / rhs.into()) }
+            fn wrapping_div(self, rhs: Rhs) -> Self { Self(self.0 / rhs.into().0) }
         }
 
-        impl<Rhs: Into<$inner>> RemChecked<Rhs> for $name {
+        impl<Rhs: Into<Self>> RemChecked<Rhs> for $name {
             type Output = Self;
 
             fn checked_rem(self, rhs: Rhs) -> Option<Self> {
-                self.0.checked_rem(rhs.into()).map(Self)
+                self.0.checked_rem(rhs.into().0).map(Self)
             }
         }
 
-        impl<Rhs: Into<$inner>> RemOverflowing<Rhs> for $name {
+        impl<Rhs: Into<Self>> RemOverflowing<Rhs> for $name {
             type Output = Self;
 
             fn overflowing_rem(self, rhs: Rhs) -> (Self, bool) {
-                (Self(self.0 % rhs.into()), false)
+                (Self(self.0 % rhs.into().0), false)
             }
         }
 
-        impl<Rhs: Into<$inner>> RemWrapping<Rhs> for $name {
+        impl<Rhs: Into<Self>> RemWrapping<Rhs> for $name {
             type Output = Self;
 
-            fn wrapping_rem(self, rhs: Rhs) -> Self { Self(self.0 % rhs.into()) }
+            fn wrapping_rem(self, rhs: Rhs) -> Self { Self(self.0 % rhs.into().0) }
         }
 
         impl NegWrapping for $name {
@@ -369,39 +391,48 @@ macro_rules! smallint_trait_impls {
     };
 }
 
-/// Implements a binary operator, together with its assigning form, for any
-/// right-hand operand convertible into the underlying primitive type. The
-/// operator panics with the given message if the checked operation fails or its
-/// result does not fit the type.
+/// Implements an arithmetic operator of two values of the type on top of its
+/// checked form, panicking with the given message if the latter fails.
 macro_rules! smallint_operators {
-    ($name:ident($inner:ident): $($op:ident $fn:ident $op_assign:ident $fn_assign:ident =>
-     $checked:expr, $panic:literal;)+) => {$(
-        impl<T: Into<$inner>> $op<T> for $name {
+    ($name:ident: $($op:ident $fn:ident => $trait:ident::$checked:ident, $panic:literal;)+) => {$(
+        impl<Rhs: Into<Self>> $op<Rhs> for $name {
             type Output = Self;
 
-            fn $fn(self, rhs: T) -> Self {
-                let checked: fn($inner, $inner) -> Option<$inner> = $checked;
-                checked(self.0, rhs.into()).and_then(|val| Self::try_from(val).ok()).expect($panic)
+            fn $fn(self, rhs: Rhs) -> Self {
+                <Self as $trait<Rhs>>::$checked(self, rhs).expect($panic)
             }
-        }
-
-        impl<T: Into<$inner>> $op_assign<T> for $name {
-            fn $fn_assign(&mut self, rhs: T) { *self = $op::$fn(*self, rhs) }
         }
     )+};
 }
 
-macro_rules! smallint_arithmetic_operators {
-    ($name:ident($inner:ident): $($op:ident $fn:ident $op_assign:ident $fn_assign:ident =>
-     $method:ident, $panic:literal;)+) => {$ (
-        impl<T: Into<$inner>> $op<T> for $name {
+/// Implements a bitwise operator of two values of the type, which can't
+/// overflow.
+macro_rules! smallint_bitwise_operators {
+    ($name:ident: $($op:ident $fn:ident $tok:tt),+) => {$(
+        impl<Rhs: Into<Self>> $op<Rhs> for $name {
             type Output = Self;
 
-            fn $fn(self, rhs: T) -> Self { self.$method(rhs).expect($panic) }
+            fn $fn(self, rhs: Rhs) -> Self {
+                let rhs = rhs.into();
+                Self(self.0 $tok rhs.0)
+            }
         }
+    )+};
+}
 
+/// Implements an assigning operator for any right-hand operand convertible into
+/// the underlying primitive type. The operator panics with the given message if
+/// the checked operation fails or its result does not fit the type.
+macro_rules! smallint_assign_operators {
+    ($name:ident($inner:ident): $($op_assign:ident $fn_assign:ident =>
+     $checked:expr, $panic:literal;)+) => {$(
         impl<T: Into<$inner>> $op_assign<T> for $name {
-            fn $fn_assign(&mut self, rhs: T) { *self = $op::$fn(*self, rhs) }
+            fn $fn_assign(&mut self, rhs: T) {
+                let checked: fn($inner, $inner) -> Option<$inner> = $checked;
+                *self = checked(self.0, rhs.into())
+                    .and_then(|val| Self::try_from(val).ok())
+                    .expect($panic);
+            }
         }
     )+};
 }
@@ -434,15 +465,19 @@ smallint! {
 }
 
 /// Implements the lossless conversions of each integer of the list into all
-/// larger ones.
+/// larger ones, and the operations mixing them.
 macro_rules! smallint_widening {
     ($small:ident $($large:ident)*) => {
-        $(impl From<$small> for $large {
-            fn from(value: $small) -> Self {
-                const { assert!($small::BITS < $large::BITS, "lossy conversion") };
-                Self(value.0.into())
+        $(
+            impl From<$small> for $large {
+                fn from(value: $small) -> Self {
+                    const { assert!($small::BITS < $large::BITS, "lossy conversion") };
+                    Self(value.0.into())
+                }
             }
-        })*
+
+            promote!(own [] $small, $large => $large, |lhs, rhs| (lhs.into(), rhs));
+        )*
         smallint_widening!($($large)*);
     };
     () => {};
@@ -450,7 +485,8 @@ macro_rules! smallint_widening {
 smallint_widening!(u1 u2 u3 u4 u5 u6 u7 u10 u12 u14 u20 u24 u40 u48 u56);
 
 /// Implements the lossless conversions of the small integers into the primitive
-/// ones.
+/// ones, and the operations mixing them. The arithmetic traits of the primitive
+/// left operands are covered by the [`crate::traits`] implementations already.
 macro_rules! smallint_into {
     ($($name:ident)+ => $prims:tt) => { $(smallint_into!(@ $name => $prims);)+ };
     (@ $name:ident => [$($prim:ident)+]) => {$(
@@ -464,6 +500,9 @@ macro_rules! smallint_into {
                 value.0 as $prim
             }
         }
+
+        promote!(prim [] $name, $prim => $prim, |lhs, rhs| (lhs.into(), rhs));
+        promote!(ops prim [] $prim, $name => $prim, |lhs, rhs| (lhs, rhs.into()));
     )+};
 }
 smallint_into!(u1 u2 u3 u4 u5 u6 u7 => [u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128 isize]);
@@ -474,6 +513,26 @@ smallint_into!(u40 u48 u56 => [u64 u128 i64 i128]);
 smallint_into!(u20 u24 => [usize isize]);
 #[cfg(target_pointer_width = "64")]
 smallint_into!(u40 u48 u56 => [usize isize]);
+
+/// Implements the operations mixing the small integers with the primitive ones
+/// which fit them losslessly.
+macro_rules! smallint_from_prim {
+    ($($prim:ident => [$($name:ident)+];)+) => {$($(
+        impl From<$prim> for $name {
+            fn from(value: $prim) -> Self {
+                const { assert!($prim::BITS <= $name::BITS, "lossy conversion") };
+                Self(value.into())
+            }
+        }
+
+        promote!(own [] $prim, $name => $name, |lhs, rhs| ($name(lhs.into()), rhs));
+    )+)+};
+}
+smallint_from_prim! {
+    u8 => [u10 u12 u14 u20 u24 u40 u48 u56];
+    u16 => [u20 u24 u40 u48 u56];
+    u32 => [u40 u48 u56];
+}
 
 /// Implements the byte conversions for the integers made of a whole number of
 /// bytes.
@@ -526,6 +585,13 @@ smallint_bytes! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Copy, Clone)]
+    struct CustomOperand(u8);
+
+    impl From<CustomOperand> for u24 {
+        fn from(value: CustomOperand) -> Self { Self::with(u32::from(value.0)) }
+    }
 
     /// Values of the underlying primitive type to test with: all of them if the
     /// type is `u8`, or the corner cases mixed with pseudo-random numbers
@@ -613,27 +679,112 @@ mod tests {
 
                     for &b in &values {
                         let (rhs, b) = (b as $inner, b as i128);
+
+                        // The underlying type is the wider one, thus the operations
+                        // with it are performed by that type.
+                        let inner = a as $inner;
+                        assert_eq!(x.checked_add(rhs), inner.checked_add(rhs));
+                        assert_eq!(x.overflowing_add(rhs), inner.overflowing_add(rhs));
+                        assert_eq!(x.saturating_add(rhs), inner.saturating_add(rhs));
+                        assert_eq!(x.wrapping_add(rhs), inner.wrapping_add(rhs));
+                        assert_eq!(x.checked_sub(rhs), inner.checked_sub(rhs));
+                        assert_eq!(x.overflowing_sub(rhs), inner.overflowing_sub(rhs));
+                        assert_eq!(x.saturating_sub(rhs), inner.saturating_sub(rhs));
+                        assert_eq!(x.wrapping_sub(rhs), inner.wrapping_sub(rhs));
+                        assert_eq!(x.checked_mul(rhs), inner.checked_mul(rhs));
+                        assert_eq!(x.overflowing_mul(rhs), inner.overflowing_mul(rhs));
+                        assert_eq!(x.saturating_mul(rhs), inner.saturating_mul(rhs));
+                        assert_eq!(x.wrapping_mul(rhs), inner.wrapping_mul(rhs));
+                        assert_eq!(x.checked_div(rhs), inner.checked_div(rhs));
+                        assert_eq!(x.checked_rem(rhs), inner.checked_rem(rhs));
+                        assert_eq!(
+                            <$inner as SubChecked<$name>>::checked_sub(rhs, x),
+                            rhs.checked_sub(inner)
+                        );
+                        if let Some(sum) = inner.checked_add(rhs) {
+                            assert_eq!((x + rhs, rhs + x), (sum, sum));
+                        }
+                        if let Some(diff) = inner.checked_sub(rhs) {
+                            assert_eq!(x - rhs, diff);
+                        }
+                        if let Some(diff) = rhs.checked_sub(inner) {
+                            assert_eq!(rhs - x, diff);
+                        }
+                        if let Some(prod) = inner.checked_mul(rhs) {
+                            assert_eq!((x * rhs, rhs * x), (prod, prod));
+                        }
+                        if b != 0 {
+                            assert_eq!((x / rhs, x % rhs), (inner / rhs, inner % rhs));
+                            assert_eq!(x.overflowing_div(rhs), (inner / rhs, false));
+                            assert_eq!(x.saturating_div(rhs), inner / rhs);
+                            assert_eq!(x.wrapping_div(rhs), inner / rhs);
+                            assert_eq!(x.overflowing_rem(rhs), (inner % rhs, false));
+                            assert_eq!(x.wrapping_rem(rhs), inner % rhs);
+                        }
+                        if a != 0 {
+                            assert_eq!((rhs / x, rhs % x), (rhs / inner, rhs % inner));
+                        }
+                        let bitwise = (inner & rhs, inner | rhs, inner ^ rhs);
+                        assert_eq!((x & rhs, x | rhs, x ^ rhs), bitwise);
+                        assert_eq!((rhs & x, rhs | x, rhs ^ x), bitwise);
+
+                        // The compound assignment keeps the type of the left operand.
+                        let assign = |op: fn(&mut $name, $inner)| {
+                            let mut val = x;
+                            op(&mut val, rhs);
+                            val
+                        };
+                        if a + b <= MAX {
+                            assert_eq!(assign(|val, rhs| *val += rhs), small(a + b));
+                        }
+                        if a >= b {
+                            assert_eq!(assign(|val, rhs| *val -= rhs), small(a - b));
+                        }
+                        if a * b <= MAX {
+                            assert_eq!(assign(|val, rhs| *val *= rhs), small(a * b));
+                        }
+                        if b != 0 {
+                            assert_eq!(assign(|val, rhs| *val /= rhs), small(a / b));
+                            assert_eq!(assign(|val, rhs| *val %= rhs), small(a % b));
+                        }
+                        assert_eq!(assign(|val, rhs| *val &= rhs), small(a & b));
+                        if b <= MAX {
+                            assert_eq!(assign(|val, rhs| *val |= rhs), small(a | b));
+                            assert_eq!(assign(|val, rhs| *val ^= rhs), small(a ^ b));
+                        }
+
+                        let quot = (b != 0).then(|| small(a / b));
+                        let rem = (b != 0).then(|| small(a % b));
+                        match quot.zip(rem) {
+                            None => assert_eq!(x.div_rem(rhs), Err(DivError::ZeroDiv)),
+                            Some((q, r)) => assert_eq!(x.div_rem(rhs), Ok((q, r))),
+                        }
+
+                        if b > MAX {
+                            continue;
+                        }
+                        let y = small(b);
                         let flavors = [
                             (
                                 a + b,
-                                x.checked_add(rhs),
-                                x.overflowing_add(rhs),
-                                x.saturating_add(rhs),
-                                x.wrapping_add(rhs),
+                                x.checked_add(y),
+                                x.overflowing_add(y),
+                                x.saturating_add(y),
+                                x.wrapping_add(y),
                             ),
                             (
                                 a - b,
-                                x.checked_sub(rhs),
-                                x.overflowing_sub(rhs),
-                                x.saturating_sub(rhs),
-                                x.wrapping_sub(rhs),
+                                x.checked_sub(y),
+                                x.overflowing_sub(y),
+                                x.saturating_sub(y),
+                                x.wrapping_sub(y),
                             ),
                             (
                                 a * b,
-                                x.checked_mul(rhs),
-                                x.overflowing_mul(rhs),
-                                x.saturating_mul(rhs),
-                                x.wrapping_mul(rhs),
+                                x.checked_mul(y),
+                                x.overflowing_mul(y),
+                                x.saturating_mul(y),
+                                x.wrapping_mul(y),
                             ),
                         ];
                         for (exact, checked, overflowing, saturating, wrapping) in flavors {
@@ -646,35 +797,25 @@ mod tests {
                         }
 
                         if a + b <= MAX {
-                            assert_eq!(x + rhs, small(a + b));
+                            assert_eq!(x + y, small(a + b));
                         }
                         if a >= b {
-                            assert_eq!(x - rhs, small(a - b));
+                            assert_eq!(x - y, small(a - b));
                         }
                         if a * b <= MAX {
-                            assert_eq!(x * rhs, small(a * b));
+                            assert_eq!(x * y, small(a * b));
                         }
-                        assert_eq!(x & rhs, small(a & b));
-                        if b <= MAX {
-                            assert_eq!(x | rhs, small(a | b));
-                            assert_eq!(x ^ rhs, small(a ^ b));
-                            assert_eq!(x.cmp(&small(b)), a.cmp(&b));
-                        }
+                        assert_eq!((x & y, x | y, x ^ y), (small(a & b), small(a | b), small(a ^ b)));
+                        assert_eq!(x.cmp(&y), a.cmp(&b));
 
-                        let quot = (b != 0).then(|| small(a / b));
-                        let rem = (b != 0).then(|| small(a % b));
-                        assert_eq!((x.checked_div(rhs), x.checked_rem(rhs)), (quot, rem));
-                        match quot.zip(rem) {
-                            None => assert_eq!(x.div_rem(rhs), Err(DivError::ZeroDiv)),
-                            Some((q, r)) => {
-                                assert_eq!(x.div_rem(rhs), Ok((q, r)));
-                                assert_eq!((x / rhs, x % rhs), (q, r));
-                                assert_eq!(x.overflowing_div(rhs), (q, false));
-                                assert_eq!(x.saturating_div(rhs), q);
-                                assert_eq!(x.wrapping_div(rhs), q);
-                                assert_eq!(x.overflowing_rem(rhs), (r, false));
-                                assert_eq!(x.wrapping_rem(rhs), r);
-                            }
+                        assert_eq!((x.checked_div(y), x.checked_rem(y)), (quot, rem));
+                        if let Some((q, r)) = quot.zip(rem) {
+                            assert_eq!((x / y, x % y), (q, r));
+                            assert_eq!(x.overflowing_div(y), (q, false));
+                            assert_eq!(x.saturating_div(y), q);
+                            assert_eq!(x.wrapping_div(y), q);
+                            assert_eq!(x.overflowing_rem(y), (r, false));
+                            assert_eq!(x.wrapping_rem(y), r);
                         }
                     }
                 }
@@ -724,12 +865,58 @@ mod tests {
         val ^= 10u8;
         assert_eq!(val, u5::with(6));
 
-        // The right-hand operand may be any integer which fits the underlying
-        // type.
+        // A narrower right-hand operand keeps the type.
         assert_eq!(val + u5::with(4) + u1::ONE, u5::with(11));
         assert_eq!(u24::with(1000) * u7::with(100) - u14::with(5), u24::with(99_995));
         assert_eq!(u4::MAX << 1, u4::with(0b1110));
         assert_eq!(u4::MAX << 3, u4::with(0b1000));
+    }
+
+    #[test]
+    fn promotion() {
+        // The result has the type of the wider operand.
+        assert_eq!(u5::MAX + 224u8, u8::MAX);
+        assert_eq!(250u8 + u24::with(10), u24::with(260));
+        assert_eq!(u24::MAX - 1u64, 0xFF_FFFEu64);
+        assert_eq!(u5::with(3) * u24::with(5), u24::with(15));
+        assert_eq!(u24::with(5) * u5::with(3), u24::with(15));
+        assert_eq!(u14::MAX / u20::with(2), u20::with(0x1FFF));
+        assert_eq!(1000u16 % u20::with(7), u20::with(6));
+        assert_eq!(u7::MAX | 128u8, u8::MAX);
+        assert_eq!(u12::MAX ^ u7::MAX, u12::with(0xF80));
+        assert_eq!(u40::MAX & 0xFFu32, u40::with(0xFF));
+        assert_eq!(u7::MAX - i8::MAX, 0i8);
+        assert_eq!(u24::with(5) - 10i32, -5i32);
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(u56::MAX + 1usize, 1usize << 56);
+
+        // An unsuffixed literal is an `i32`, which fits the narrower types.
+        assert_eq!(u24::with(5) + 3, 8i32);
+        assert_eq!(u5::ONE - 2, -1i32);
+
+        assert_eq!(u5::MAX.checked_add(224u8), Some(u8::MAX));
+        assert_eq!(u5::MAX.checked_add(225u8), None);
+        assert_eq!(<u8 as AddChecked<u24>>::checked_add(u8::MAX, u24::MAX), None);
+        assert_eq!(<u8 as AddWrapping<u24>>::wrapping_add(1, u24::MAX), u24::ZERO);
+        assert_eq!(<u8 as SubOverflowing<u24>>::overflowing_sub(1, u24::with(2)), (u24::MAX, true));
+        assert_eq!(u14::ONE.saturating_sub(u20::with(2)), u20::ZERO);
+        assert_eq!(u24::with(5).overflowing_sub(6u32), (u32::MAX, true));
+        assert_eq!(u24::with(5).wrapping_mul(-1i32), -5i32);
+        assert_eq!(u1::ONE.saturating_mul(u56::MAX), u56::MAX);
+        assert_eq!(u4::MAX.checked_div(0u16), None);
+        assert_eq!(u4::MAX.checked_rem(u7::with(4)), Some(u7::with(3)));
+    }
+
+    #[test]
+    fn generic_operands() {
+        fn arithmetic<T: Into<u24> + Copy>(value: u24, rhs: T) -> (u24, Option<u24>, u24) {
+            (value + rhs, value.checked_add(rhs), value & rhs)
+        }
+
+        assert_eq!(
+            arithmetic(u24::with(10), CustomOperand(5)),
+            (u24::with(15), Some(u24::with(15)), u24::ZERO)
+        );
     }
 
     #[test]
@@ -753,6 +940,11 @@ mod tests {
         assert_eq!(u40::from(u24::MAX), u40::with(0xFF_FFFF));
         assert_eq!(u56::from(u48::MAX), u56::with(0xFFFF_FFFF_FFFF));
         assert_eq!(u56::from(u1::ONE), u56::ONE);
+
+        assert_eq!(u10::from(u8::MAX), u10::with(0xFF));
+        assert_eq!(u20::from(u16::MAX), u20::with(0xFFFF));
+        assert_eq!(u40::from(u32::MAX), u40::with(0xFFFF_FFFF));
+        assert_eq!(u56::from(u8::MAX), u56::with(0xFF));
     }
 
     #[test]
@@ -835,15 +1027,34 @@ mod tests {
         with_overflow: "provided value exceeds Self::MAX" => u4::with(16);
         radix_too_small: "radix must lie in the range" => u4::from_str_radix("0", 1);
         radix_too_large: "radix must lie in the range" => u4::from_str_radix("0", 37);
-        add_overflow: "attempt to add with overflow" => u4::MAX + 1u8;
+        add_overflow: "attempt to add with overflow" => u4::MAX + u4::ONE;
+        add_assign_overflow: "attempt to add with overflow" => {
+            let mut val = u4::MAX;
+            val += 1u8;
+            val
+        };
         add_inner_overflow: "attempt to add with overflow" => u56::with(5) + u64::MAX;
-        sub_overflow: "attempt to subtract with overflow" => u4::ZERO - 1u8;
-        mul_overflow: "attempt to multiply with overflow" => u7::MAX * 127u8;
+        add_promoted_overflow: "attempt to add with overflow" => 1u8 + u24::MAX;
+        sub_overflow: "attempt to subtract with overflow" => u4::ZERO - u1::ONE;
+        sub_inner_overflow: "attempt to subtract with overflow" => u4::ZERO - 1u8;
+        mul_overflow: "attempt to multiply with overflow" => u7::MAX * u7::with(2);
         mul_inner_overflow: "attempt to multiply with overflow" => u7::MAX * 255u8;
-        div_by_zero: "attempt to divide by zero" => u4::ONE / 0u8;
-        rem_by_zero: "attempt to calculate the remainder with a divisor of zero" => u4::ONE % 0u8;
-        bitor_overflow: "attempt to bitor with overflow" => u4::ONE | 16u8;
-        bitxor_overflow: "attempt to bitxor with overflow" => u4::ONE ^ 16u8;
+        div_by_zero: "attempt to divide by zero" => u4::ONE / u4::ZERO;
+        div_inner_by_zero: "attempt to divide by zero" => u4::ONE / 0u8;
+        rem_by_zero: "attempt to calculate the remainder with a divisor of zero" =>
+            u4::ONE % u4::ZERO;
+        rem_promoted_by_zero: "attempt to calculate the remainder with a divisor of zero" =>
+            1u8 % u12::ZERO;
+        bitor_overflow: "attempt to bitor with overflow" => {
+            let mut val = u4::ONE;
+            val |= 16u8;
+            val
+        };
+        bitxor_overflow: "attempt to bitxor with overflow" => {
+            let mut val = u4::ONE;
+            val ^= 16u8;
+            val
+        };
         shl_overflow: "attempt to shift left with overflow" => u4::ONE << 4;
         shr_overflow: "attempt to shift right with overflow" => u4::ONE >> 4;
     }

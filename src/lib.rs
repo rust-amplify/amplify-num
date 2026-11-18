@@ -48,6 +48,7 @@ pub mod error;
 #[cfg(feature = "hex")]
 pub mod hex;
 mod limbs;
+mod promote;
 mod smallint;
 pub mod traits;
 

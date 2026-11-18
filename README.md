@@ -21,6 +21,9 @@ categories and explicit overflow-handling arithmetic. It is part of the
   **both debug and release** builds instead of silently wrapping. Expected
   overflow is handled explicitly through `checked_*`, `overflowing_*`,
   `saturating_*`, and `wrapping_*` trait methods.
+- **Mixed-type arithmetic**: integers of different types, including the
+  primitive ones on either side of an operator, can be combined when one type
+  fits the other losslessly; the result has the wider of the two types.
 - **`#![forbid(unsafe_code)]`**: implemented entirely in safe Rust and verified
   under Miri in CI.
 - **`no_std` and allocation-free by default**: zero mandatory dependencies;
@@ -35,11 +38,11 @@ categories and explicit overflow-handling arithmetic. It is part of the
   - Type aliases for common widths: `u256`, `u512`, `u1024`, `i256`, `i512`,
     and `i1024`; arbitrary multiples of 64 bits can be instantiated directly via
     `BigInt<N, SIGNED>`.
-  - Supports lossless mixed-width primitive operands, standard formatting traits
-    (`Display`, `Debug`, `Binary`, `Octal`, `LowerHex`, `UpperHex`), `FromStr`
-    and `from_str_radix` (`2..=36`), big- and little-endian byte array/slice
-    conversions, `div_rem` and Euclidean division, bit-inspection helpers, and
-    compile-time rejection of lossy `From` conversions.
+  - Supports mixed-type arithmetic with narrower integers, standard formatting
+    traits (`Display`, `Debug`, `Binary`, `Octal`, `LowerHex`, `UpperHex`),
+    `FromStr` and `from_str_radix` (`2..=36`), big- and little-endian byte
+    array/slice conversions, `div_rem` and Euclidean division, bit-inspection
+    helpers, and compile-time rejection of lossy `From` conversions.
 - **Sub-byte unsigned integers (`u1` to `u7`)**:
   - `u1`, `u2`, `u3`, `u4`, `u5`, `u6`, and `u7` backed by `u8`, enforcing the
     range `0..2^BITS` across construction (`with`, `TryFrom`, `FromStr`,
@@ -47,11 +50,13 @@ categories and explicit overflow-handling arithmetic. It is part of the
 - **Custom bit-sized unsigned integers (`u10` to `u56`)**:
   - `u10`, `u12`, `u14` (backed by `u16`), `u20`, `u24` (backed by `u32`), and
     `u40`, `u48`, `u56` (backed by `u64`).
+  - Lossless `From` conversions from `u8` into `u10` and wider, from `u16` into
+    `u20` and wider, and from `u32` into `u40` and wider.
   - Whole-byte widths (`u24`, `u40`, `u48`, `u56`) provide `const` big- and
     little-endian byte-array conversions (`[u8; 3]`, `[u8; 5]`, `[u8; 6]`,
     `[u8; 7]`).
   - All sub-byte and custom bit-sized integers implement lossless `From`
-    widening into every larger custom and primitive integer type.
+    widening into every larger custom, primitive and big integer type.
 
 ## Numeric & Arithmetic Traits
 
@@ -82,8 +87,8 @@ all custom-width integers in this crate, and `core::num::NonZero*` types
 
 For `BigInt` and the small/custom-width integers, these traits provide their
 `checked_*`, `overflowing_*`, `saturating_*`, and `wrapping_*` methods directly
-(without duplicate inherent methods) while supporting generic right-hand
-operands.
+(without duplicate inherent methods) while supporting mixed-type operands, as
+described below.
 
 ## Usage
 
@@ -132,13 +137,41 @@ let nibble = u4::with(0b1010);
 assert_eq!(nibble.to_u8(), 10);
 assert!(u4::try_from(16u8).is_err());
 
-assert_eq!(nibble + 5u8, u4::MAX);
-assert_eq!(nibble.wrapping_add(7u8), u4::ONE);
-assert_eq!(nibble.saturating_add(10u8), u4::MAX);
+assert_eq!(nibble + u4::with(5), u4::MAX);
+assert_eq!(nibble.wrapping_add(u4::with(7)), u4::ONE);
+assert_eq!(nibble.saturating_add(u4::with(10)), u4::MAX);
 
 let tag = u24::from_be_bytes([0x12, 0x34, 0x56]);
 assert_eq!(u32::from(tag), 0x0012_3456);
 assert_eq!(u24::from(nibble), u24::with(10));
+```
+
+### Mixed-type arithmetic
+
+The operands of different integer types are converted into the wider of the two
+types, which is the type of the result. The types of which none fits the other
+losslessly, like `u24` and `i8`, or `u256` and `i32`, can't be combined, as in
+the case of the primitive integers. An unsuffixed literal is an `i32`, thus it
+can be used only with the integers narrower than 32 bits, which fit it. The
+small integers also support generic right-hand operands convertible into the
+left-hand type. The compound assignment operators keep the type of their left
+operand.
+
+```rust
+use amplify_num::{AddChecked, u4, u24, u256};
+
+let nibble = u4::with(0b1010);
+assert_eq!(nibble + 5u8, 15u8);
+assert_eq!(3u8 + u24::with(5), u24::with(8));
+assert_eq!(u24::MAX * 2u64, 0x1FF_FFFEu64);
+assert_eq!(u24::MAX + u256::ONE, u256::from(1u32 << 24));
+assert_eq!(nibble - 11, -1i32);
+assert_eq!(nibble.checked_add(u8::MAX), None);
+
+let mut acc = u24::ZERO;
+acc += 250u8;
+acc += nibble;
+assert_eq!(acc, u24::with(260));
 ```
 
 ### Generic integer bounds

@@ -34,6 +34,8 @@ use core::str::{self, FromStr};
 
 use crate::error::{DivError, ParseIntError, ParseLengthError};
 use crate::limbs;
+use crate::promote::promote;
+use crate::smallint::{u1, u2, u3, u4, u5, u6, u7, u10, u12, u14, u20, u24, u40, u48, u56};
 use crate::traits::{
     AddChecked, AddOverflowing, AddSaturate, AddWrapping, DivChecked, DivOverflowing, DivSaturate,
     DivWrapping, Integer, MulChecked, MulOverflowing, MulSaturate, MulWrapping, NegChecked,
@@ -52,10 +54,14 @@ use crate::traits::{
 /// `checked_*`, `overflowing_*`, `saturating_*` and `wrapping_*` methods for
 /// explicit control over the overflow handling.
 ///
+/// The other operand may be a narrower integer, either a primitive one, or a
+/// small one, or a big one with fewer limbs, on any side of an operator. It is
+/// converted losslessly into the wider type, which is the type of the result.
+///
 /// The type does not allocate and can be used on bare-metal targets.
 ///
 /// ```
-/// use amplify_num::{AddChecked, SubSaturate, i256, u256};
+/// use amplify_num::{AddChecked, SubSaturate, i256, u24, u256};
 ///
 /// let x = u256::from(u128::MAX) * 3u8 + 2u8;
 /// assert_eq!(x.to_string(), "1020847100762815390390123822295304634367");
@@ -65,6 +71,7 @@ use crate::traits::{
 /// assert_eq!(u256::MAX.checked_add(1u8), None);
 /// assert_eq!(i256::MIN.saturating_sub(1), i256::MIN);
 /// assert_eq!(i256::from(-7).rem_euclid(4), i256::from(1));
+/// assert_eq!(2u64 * u256::ONE + u24::MAX, u256::from(0x100_0001u32));
 /// ```
 ///
 /// Operations which can't be performed without a loss are rejected by the
@@ -514,31 +521,64 @@ impl<const N: usize, const S: bool> From<bool> for BigInt<N, S> {
     fn from(value: bool) -> Self { Self::from_low(value.into(), 0) }
 }
 
+/// Implements the lossless conversions of the primitive integers into the big
+/// ones, and the operations with a primitive left operand. The operations with
+/// a primitive right operand are covered by the generic implementations.
 macro_rules! from_unsigned {
     ($($prim:ident)+) => {$(
         impl<const N: usize, const S: bool> From<$prim> for BigInt<N, S> {
+            #[allow(
+                trivial_numeric_casts,
+                reason = "macro generates identity and widening casts uniformly"
+            )]
             fn from(value: $prim) -> Self {
                 const { assert!($prim::BITS + S as u32 <= Self::BITS, "lossy conversion") };
-                Self::from_low(value.into(), 0)
+                Self::from_low(value as u128, 0)
             }
         }
+
+        promote!(own [const N: usize, const S: bool] $prim, BigInt<N, S> => BigInt<N, S>,
+            |lhs, rhs| (lhs.into(), rhs));
     )+};
 }
-from_unsigned!(u8 u16 u32 u64 u128);
+from_unsigned!(u8 u16 u32 u64 u128 usize);
 
 macro_rules! from_signed {
     ($($prim:ident)+) => {$(
         impl<const N: usize> From<$prim> for BigInt<N, true> {
+            #[allow(
+                trivial_numeric_casts,
+                reason = "macro generates identity and widening casts uniformly"
+            )]
             fn from(value: $prim) -> Self {
                 const { assert!($prim::BITS <= Self::BITS, "lossy conversion") };
                 let fill = if value < 0 { u64::MAX } else { 0 };
-                Self::from_low(i128::from(value).cast_unsigned(), fill)
+                Self::from_low((value as i128).cast_unsigned(), fill)
             }
         }
+
+        promote!(own [const N: usize] $prim, BigInt<N, true> => BigInt<N, true>,
+            |lhs, rhs| (lhs.into(), rhs));
     )+};
 }
-from_signed!(i8 i16 i32 i64 i128);
+from_signed!(i8 i16 i32 i64 i128 isize);
 
+/// Implements the lossless conversions of the small integers into the big ones,
+/// and the operations with a small left operand.
+macro_rules! from_smallint {
+    ($($small:ident)+) => {$(
+        impl<const N: usize, const S: bool> From<$small> for BigInt<N, S> {
+            fn from(value: $small) -> Self { Self::from_low(u64::from(value).into(), 0) }
+        }
+
+        promote!(own [const N: usize, const S: bool] $small, BigInt<N, S> => BigInt<N, S>,
+            |lhs, rhs| (lhs.into(), rhs));
+    )+};
+}
+from_smallint!(u1 u2 u3 u4 u5 u6 u7 u10 u12 u14 u20 u24 u40 u48 u56);
+
+/// Implements the lossless conversions of the big integers into the larger
+/// ones, and the operations with a smaller left operand.
 macro_rules! from_smaller {
     ($($from:literal => $to:literal),+) => {$(
         impl<const S: bool> From<BigInt<$from, S>> for BigInt<$to, S> {
@@ -548,6 +588,9 @@ macro_rules! from_smaller {
                 Self(array::from_fn(|i| value.0.get(i).copied().unwrap_or(fill)))
             }
         }
+
+        promote!(own [const S: bool] BigInt<$from, S>, BigInt<$to, S> => BigInt<$to, S>,
+            |lhs, rhs| (lhs.into(), rhs));
     )+};
 }
 from_smaller!(4 => 8, 4 => 16, 8 => 16);
@@ -1748,6 +1791,45 @@ mod tests {
         assert!(u256::MAX > biggest && u256::MAX.cast_signed() < small.cast_signed());
     }
 
+    #[test]
+    fn promotion() {
+        // The narrower operand of any side is converted into the wider one.
+        assert_eq!(3u8 + u256::ONE, u256::from(4u8));
+        assert_eq!(u128::MAX - u256::ONE, u256::from(u128::MAX - 1));
+        assert_eq!(7usize * u256::from(6u8), u256::from(42u8));
+        assert_eq!(u256::from(42u8) / 5usize, u256::from(8u8));
+        assert_eq!(-7isize % i256::from(4), i256::from(-3));
+        assert_eq!(-1i8 + i256::ONE, i256::ZERO);
+        assert_eq!(u24::MAX + u256::ONE, u256::from(1u32 << 24));
+        assert_eq!(u256::ONE + u24::MAX, u256::from(1u32 << 24));
+        assert_eq!(u5::MAX - i256::from(32), i256::from(-1));
+        assert_eq!(0xF0u8 & u256::MAX, u256::from(0xF0u8));
+        assert_eq!(1u64 | u256::from(2u8), u256::from(3u8));
+        assert_eq!(u7::MAX ^ u512::MAX, !u512::from(127u8));
+        assert_eq!(u256::MAX + u512::ONE, u512::ONE << 256);
+        assert_eq!(u512::ONE + u256::MAX, u512::ONE << 256);
+        assert_eq!(i256::MIN * i1024::from(2), i1024::from(i256::MIN) * 2);
+
+        assert_eq!(AddChecked::checked_add(1u8, u256::MAX), None);
+        assert_eq!(AddWrapping::wrapping_add(1u8, u256::MAX), u256::ZERO);
+        assert_eq!(SubOverflowing::overflowing_sub(0u64, u256::ONE), (u256::MAX, true));
+        assert_eq!(SubSaturate::saturating_sub(5u16, u256::from(9u8)), u256::ZERO);
+        assert_eq!(MulSaturate::saturating_mul(-2i64, i256::MAX), i256::MIN);
+        assert_eq!(DivChecked::checked_div(u256::MAX, u512::ZERO), None);
+        assert_eq!(RemChecked::checked_rem(u14::MAX, u256::from(10u8)), Some(u256::from(3u8)));
+        assert_eq!(u24::MAX.checked_mul(u256::MAX), None);
+        assert_eq!(u1::ONE.overflowing_add(i256::MAX), (i256::MIN, true));
+        assert_eq!(
+            <u256 as AddChecked<u512>>::checked_add(u256::MAX, u512::ONE),
+            Some(u512::ONE << 256)
+        );
+
+        assert_eq!(u256::from(usize::MAX).bits_required(), usize::BITS);
+        assert_eq!(i256::from(isize::MIN), i256::from(isize::MIN as i64));
+        assert_eq!(u256::from(u56::MAX), u256::from(u64::from(u56::MAX)));
+        assert_eq!(BigInt::<1, true>::from(u56::MAX), BigInt::<1, true>::from((1i64 << 56) - 1));
+    }
+
     macro_rules! panics {
         ($($name:ident: $msg:literal => $expr:expr;)+) => {$(
             #[test]
@@ -1758,6 +1840,9 @@ mod tests {
 
     panics! {
         add_overflow: "attempt to add with overflow" => u256::MAX + 1u8;
+        add_promoted_overflow: "attempt to add with overflow" => 1u8 + u256::MAX;
+        sub_promoted_overflow: "attempt to subtract with overflow" => u24::ZERO - u256::ONE;
+        div_promoted_by_zero: "attempt to perform division by zero" => u256::ONE / u512::ZERO;
         add_signed_overflow: "attempt to add with overflow" => i256::MIN + i256::MIN;
         sub_overflow: "attempt to subtract with overflow" => u256::ZERO - 1u8;
         sub_signed_overflow: "attempt to subtract with overflow" => i256::ZERO - i256::MIN;

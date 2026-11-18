@@ -115,14 +115,14 @@ fn add_sub_overflow_flavors_match_integer_bounds() {
     assert_eq!(sub_saturating(i8::MIN, 1), i8::MIN);
     assert_eq!(sub_wrapping(i8::MIN, 1), i8::MAX);
 
-    assert_eq!(add_checked(u3::MAX, 1u8), None);
-    assert_eq!(add_overflowing(u3::MAX, 1u8), (u3::ZERO, true));
-    assert_eq!(add_saturating(u3::MAX, 1u8), u3::MAX);
-    assert_eq!(add_wrapping(u3::MAX, 1u8), u3::ZERO);
-    assert_eq!(sub_checked(u3::ZERO, 1u8), None);
-    assert_eq!(sub_overflowing(u3::ZERO, 1u8), (u3::MAX, true));
-    assert_eq!(sub_saturating(u3::ZERO, 1u8), u3::ZERO);
-    assert_eq!(sub_wrapping(u3::ZERO, 1u8), u3::MAX);
+    assert_eq!(add_checked(u3::MAX, u1::ONE), None);
+    assert_eq!(add_overflowing(u3::MAX, u1::ONE), (u3::ZERO, true));
+    assert_eq!(add_saturating(u3::MAX, u1::ONE), u3::MAX);
+    assert_eq!(add_wrapping(u3::MAX, u1::ONE), u3::ZERO);
+    assert_eq!(sub_checked(u3::ZERO, u3::ONE), None);
+    assert_eq!(sub_overflowing(u3::ZERO, u3::ONE), (u3::MAX, true));
+    assert_eq!(sub_saturating(u3::ZERO, u3::ONE), u3::ZERO);
+    assert_eq!(sub_wrapping(u3::ZERO, u3::ONE), u3::MAX);
 
     assert_eq!(add_checked(i256::MAX, i256::ONE), None);
     assert_eq!(add_checked(i256::MAX, 1i8), None);
@@ -172,13 +172,13 @@ fn shifts_use_logical_width_for_custom_integers() {
 #[test]
 fn custom_integer_arithmetic_uses_traits_directly() {
     let small = u3::with(6);
-    let sum = small.checked_add(1u8).unwrap();
+    let sum = small.checked_add(u1::ONE).unwrap();
     assert_eq!(sum, u3::with(7));
-    assert_eq!(small + 1u8, sum);
+    assert_eq!(small + u1::ONE, sum);
     assert_eq!(u3::ONE.wrapping_neg(), u3::MAX);
-    assert!(std::panic::catch_unwind(|| u3::MAX + 1u8).is_err());
-    assert!(std::panic::catch_unwind(|| u3::ONE.wrapping_div(0u8)).is_err());
-    assert!(std::panic::catch_unwind(|| u3::ONE.wrapping_rem(0u8)).is_err());
+    assert!(std::panic::catch_unwind(|| u3::MAX + u3::ONE).is_err());
+    assert!(std::panic::catch_unwind(|| u3::ONE.wrapping_div(u3::ZERO)).is_err());
+    assert!(std::panic::catch_unwind(|| u3::ONE.wrapping_rem(u3::ZERO)).is_err());
 
     let big_signed = BigInt::<1, true>::MAX;
     assert_eq!(big_signed.overflowing_add(1i8), (BigInt::<1, true>::MIN, true));
@@ -201,6 +201,49 @@ fn custom_integer_arithmetic_uses_traits_directly() {
     assert_eq!(BigInt::<1, true>::ONE.checked_div(BigInt::ZERO), None);
     assert!(
         std::panic::catch_unwind(|| BigInt::<1, true>::ONE.wrapping_div(BigInt::ZERO)).is_err()
+    );
+}
+
+#[test]
+fn mixed_operands_promote_to_the_wider_type() {
+    fn add_promoted<L, R, T>(lhs: L, rhs: R) -> Option<T>
+    where L: AddChecked<R, Output = T> {
+        lhs.checked_add(rhs)
+    }
+
+    assert_eq!(add_promoted(u3::MAX, 1u8), Some(8u8));
+    assert_eq!(add_promoted(u5::MAX, u8::MAX), None);
+    assert_eq!(add_promoted(1u8, u12::MAX), None::<u12>);
+    assert_eq!(add_promoted(u3::MAX, u24::ONE), Some(u24::with(8)));
+    assert_eq!(add_promoted(u24::MAX, 1u32), Some(1u32 << 24));
+    assert_eq!(add_promoted(u24::MAX, -1i32), Some(0xFF_FFFE));
+    assert_eq!(add_promoted(u56::MAX, u256::ONE), Some(u256::from(1u64 << 56)));
+    assert_eq!(add_promoted(u64::MAX, u256::ONE), Some(u256::from(u64::MAX) + 1u8));
+    assert_eq!(add_promoted(i128::MIN, i256::MIN), None);
+    assert_eq!(add_promoted(u256::MAX, u512::ONE), Some(u512::ONE << 256));
+
+    assert_eq!(u4::MAX + 5u8, 20u8);
+    assert_eq!(20u8 - u4::MAX, 5u8);
+    assert_eq!(1000u16 * u20::with(1000), u20::with(1_000_000));
+    assert_eq!(u24::MAX / 3u64, 0x55_5555);
+    assert_eq!(u14::MAX % u40::with(1000), u40::with(383));
+    assert_eq!(u24::ONE - 2, -1, "an unsuffixed literal is i32");
+    assert_eq!(u128::MAX * u1024::ONE, u1024::from(u128::MAX));
+    assert_eq!(-1isize & i512::MAX, i512::MAX);
+    assert!(std::panic::catch_unwind(|| u7::MAX * 3u8).is_err());
+    assert!(std::panic::catch_unwind(|| 1u8 - u10::ONE - u10::ONE).is_err());
+
+    // The assignment keeps the type of the left operand.
+    let mut small = u4::with(3);
+    small += 5u8;
+    small -= u2::ONE;
+    assert_eq!(small, u4::with(7));
+    assert!(
+        std::panic::catch_unwind(|| {
+            let mut small = u4::MAX;
+            small += 1u8;
+        })
+        .is_err()
     );
 }
 

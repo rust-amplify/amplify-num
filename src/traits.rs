@@ -21,9 +21,32 @@
 //!
 //! Binary arithmetic traits have a generic right-hand side, defaulting to the
 //! implementing type. This permits implementations to support lossless mixed
-//! operands while keeping the result type explicit. For this crate's
-//! custom-width integers, these traits are the sole implementation of
-//! `checked_*`, `overflowing_*`, `saturating_*` and `wrapping_*` arithmetic:
+//! operands while keeping the result type explicit. For this crate's integers,
+//! the operands of different types are converted into the wider of them, which
+//! is the type of the result, both in these traits and in the operators. The
+//! types of which none fits the other losslessly are rejected by the compiler,
+//! as for the primitive integers:
+//!
+//! ```
+//! use amplify_num::{AddChecked, SubWrapping, u4, u24, u256};
+//!
+//! assert_eq!(u4::MAX.checked_add(1u8), Some(16u8));
+//! assert_eq!(SubWrapping::wrapping_sub(1u8, u24::with(2)), u24::MAX);
+//! assert_eq!(u24::MAX * 2u64, 0x1FF_FFFE);
+//! assert_eq!(1u64 + u256::ONE, u256::from(2u8));
+//! ```
+//!
+//! ```compile_fail
+//! let _ = amplify_num::u24::ONE + 1i8; // none of `u24` and `i8` fits the other
+//! ```
+//!
+//! ```compile_fail
+//! let _ = amplify_num::u256::ONE + 1; // an `i32` literal does not fit `u256`
+//! ```
+//!
+//! For this crate's custom-width integers, these traits are the sole
+//! implementation of `checked_*`, `overflowing_*`, `saturating_*` and
+//! `wrapping_*` arithmetic:
 //!
 //! ```compile_fail
 //! let _ = amplify_num::u256::ONE.checked_add(1u8); // requires `AddChecked` in scope
