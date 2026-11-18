@@ -217,7 +217,7 @@ the bit range on deserialization.
 
 ## Minimum Supported Rust Version & License
 
-- **MSRV**: Rust **1.100.0** (Rust edition **2024**).
+- **MSRV**: Rust **1.91.0** (Rust edition **2024**).
 - **Targets**: tested in CI on Linux, macOS, Windows, WebAssembly
   (`wasm32-unknown-unknown`, `wasm32-wasip1`), and bare-metal ARM Cortex-M
   (`thumbv6m-none-eabi`, `thumbv7em-none-eabi`, `thumbv8m.main-none-eabi`).

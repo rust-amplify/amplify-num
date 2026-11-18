@@ -11,7 +11,7 @@ documentation = "https://docs.rs/amplify_num"
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2024"
-rust-version = "1.100.0"
+rust-version = "1.91.0"
 include = [
     "Cargo.toml",
     "README.md",

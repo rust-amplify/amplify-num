@@ -9,7 +9,7 @@ Change Log
   repository to the `amplify_num` crate root.
 - Remove the `posit` module (`Posit8`, `Posit16`, `Posit32`, `Posit64`,
   `Posit128`, `Posit256`, `Posit512`) and `error::PositDecodeError`.
-- Upgrade Rust edition to `2024` and bump MSRV to `1.100.0`.
+- Upgrade Rust edition to `2024` and bump MSRV to `1.91.0`.
 - Forbid `unsafe` code crate-wide (`#![forbid(unsafe_code)]`) and remove raw
   pointer methods `as_ptr` and `as_mut_ptr` from big integers.
 - Remove the `all` Cargo feature and make `serde` independent of `std` and
