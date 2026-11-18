@@ -615,3 +615,55 @@ mod small {
         u56: 56 bits in u64 as U64;
     }
 }
+
+/// Exhaustively checks every `u8` value against the human-readable and binary
+/// formats for `u1` through `u7`.
+mod subbyte_exhaustive {
+    macro_rules! subbyte_serde {
+        ($($name:ident: $bits:literal;)+) => {$(
+            #[test]
+            fn $name() {
+                use amplify_num::$name as T;
+
+                use crate::*;
+
+                const MAX: u8 = (1 << $bits) - 1;
+
+                for raw in 0..=u8::MAX {
+                    let json = raw.to_string();
+                    let u64_val = u64::from(raw);
+                    if raw <= MAX {
+                        let value = T::with(raw);
+                        assert_eq!(to_binary(&value), Token::U8(raw));
+                        assert_eq!(
+                            value.serialize(Recorder { human_readable: true }),
+                            Ok(Token::U8(raw))
+                        );
+                        assert_eq!(to_json(&value), json);
+                        assert_eq!(from_json::<T>(&json), Ok(value));
+                        assert_eq!(read::<T>(Input::U64(u64_val), false), Ok(value));
+                        assert_eq!(read::<T>(Input::U64(u64_val), true), Ok(value));
+                    } else {
+                        let message = format!(
+                            "value {raw} overflows the maximum {MAX} of the integer type"
+                        );
+                        let err = from_json::<T>(&json).expect_err("value out of range");
+                        assert!(err.starts_with(&message), "{err}");
+                        assert_eq!(read::<T>(Input::U64(u64_val), false), Err(message.clone()));
+                        assert_eq!(read::<T>(Input::U64(u64_val), true), Err(message));
+                    }
+                }
+            }
+        )+};
+    }
+
+    subbyte_serde! {
+        u1: 1;
+        u2: 2;
+        u3: 3;
+        u4: 4;
+        u5: 5;
+        u6: 6;
+        u7: 7;
+    }
+}
