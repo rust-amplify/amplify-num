@@ -23,32 +23,39 @@
 //!
 //! Implementation of various integer types with custom bit dimension. This
 //! includes:
-//! * large signed and unsigned integers, named *large int types* (256, 512,
-//!   1024-bit)
-//! * custom sub-8-bit unsigned integers, named *small int types* (from 1 to
-//!   7-bit)
-//! * 10-, 12-, 14-, 20-, 24-, 40-, 48- and 56-bit unsigned integer.
+//! * large signed and unsigned integers of 256, 512 and 1024 bits, which are
+//!   aliases of the [`BigInt`] type supporting any number of 64-bit limbs;
+//! * small unsigned integers from 1 to 7 bits;
+//! * 10-, 12-, 14-, 20-, 24-, 40-, 48- and 56-bit unsigned integers.
 //!
-//! The functions here are designed to be fast.
+//! The crate contains no unsafe code, has no mandatory dependencies, does not
+//! use the standard library and performs no allocations (unless the `alloc`
+//! feature is enabled, which adds hex conversions of the allocated types),
+//! thus it can be used on bare-metal targets.
+//!
+//! Unlike the primitive integers, all types of the crate panic on an arithmetic
+//! overflow in both debug and release builds. The cases when an overflow is
+//! possible and legit must use the `checked_*`, `overflowing_*`, `saturating_*`
+//! or `wrapping_*` trait methods.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(test), no_std)]
+
 #[cfg(feature = "alloc")]
 extern crate alloc;
-extern crate core;
-
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde_crate as serde;
 
 mod bigint;
 pub mod error;
 #[cfg(feature = "hex")]
 pub mod hex;
-pub mod posit;
+mod limbs;
+mod promote;
 mod smallint;
+pub mod traits;
 
-pub use bigint::{i256, i512, i1024, u256, u512, u1024};
+pub use bigint::{BigInt, i256, i512, i1024, u256, u512, u1024};
 pub use smallint::{u1, u2, u3, u4, u5, u6, u7, u10, u12, u14, u20, u24, u40, u48, u56};
+pub use traits::*;
 
-// TODO: Create arbitrary precision types
-// TODO: Move from using `u64` to `u128` for big int types
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+mod readme {}

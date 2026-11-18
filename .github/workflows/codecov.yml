@@ -12,6 +12,9 @@ on:
       - develop
       - 'v[0-9]+.*'
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -19,19 +22,21 @@ jobs:
   codecov:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
+          toolchain: nightly
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-llvm-cov,nextest
       - name: Collect coverage data (including doctests)
         run: |
-          cargo +nightly llvm-cov --no-report nextest --workspace --all-features
-          cargo +nightly llvm-cov --no-report --doc --workspace --all-features
+          cargo +nightly llvm-cov --locked --no-report nextest --all-features
+          cargo +nightly llvm-cov --locked --no-report --doc --all-features
           cargo +nightly llvm-cov report --doctests --lcov --output-path lcov.info
       - name: Upload coverage data to codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
         with:
           flags: rust
           files: lcov.info

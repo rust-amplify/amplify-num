@@ -12,43 +12,26 @@ on:
       - develop
       - 'v[0-9]+.*'
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  default:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --workspace
-  no-default:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      # NB: we have to use either std or alloc here
-      - run: cargo check --workspace --no-default-features --features std
-      - run: cargo check --workspace --no-default-features --features alloc
   features:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        feature:
-          - std
-          - alloc
-          - serde,alloc
-          - serde,std
-          - hex,alloc
-          - hex,std
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Feature ${{matrix.feature}}
-        run: cargo check --workspace --no-default-features --features=${{matrix.feature}}
-      - name: Feature ${{matrix.feature}}
-        run: cargo check --workspace --features=${{matrix.feature}}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-hack
+      # `default` is an alias for `hex`, which is covered by the powerset.
+      - name: Every feature combination
+        run: cargo hack check --locked --all-targets --feature-powerset --exclude-features default
   platforms:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -56,20 +39,48 @@ jobs:
       matrix:
         os: [ ubuntu-24.04, ubuntu-24.04-arm, ubuntu-latest, macos-15-intel, macos-latest, windows-11-arm, windows-latest ]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: stable
       - name: Platform ${{matrix.os}}
-        run: cargo check --workspace --all-features # we skip test targets here to be sure that the main library can be built
+        run: cargo check --locked --all-features # skip test targets here to verify the main library
+  bare-metal:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ thumbv6m-none-eabi, thumbv7em-none-eabi, thumbv8m.main-none-eabi ]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: stable
+          targets: ${{matrix.target}}
+      # NB: we build instead of checking, since lossy conversions are detected only on code generation.
+      - name: Target ${{matrix.target}} without features
+        run: cargo build --locked --release --target ${{matrix.target}} --no-default-features
+      - name: Target ${{matrix.target}} with all features not requiring an allocator
+        run: cargo build --locked --release --target ${{matrix.target}} --no-default-features --features hex,serde
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - run: cargo build --locked --target wasm32-unknown-unknown --all-features
   toolchains:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [ nightly, beta, stable, 1.61.0 ]
+        toolchain: [ nightly, beta, stable, 1.100.0 ]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
           toolchain: ${{matrix.toolchain}}
       - name: Toolchain ${{matrix.toolchain}}
-        run: cargo +${{matrix.toolchain}} check --workspace --all-targets --all-features
+        run: cargo +${{matrix.toolchain}} check --locked --all-targets --all-features

@@ -1,0 +1,35 @@
+# Configuration of `cargo deny check`, which CI runs on every push and pull
+# request and once a week (see `.github/workflows/audit.yml`).
+
+[graph]
+# The optional dependencies are a part of the audited dependency graph.
+all-features = true
+
+[advisories]
+# Every advisory of the RustSec database which affects a locked dependency is an
+# error, and so are yanked, unmaintained, and unsound crates.
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+ignore = []
+
+[licenses]
+# The licenses used by the crates in `Cargo.lock` (including dev-dependencies).
+# A dependency under any other license fails the check and has to be reviewed
+# before it is added here.
+allow = ["Apache-2.0", "MIT", "Unicode-3.0", "Zlib"]
+confidence-threshold = 0.93
+include-dev = true
+
+[bans]
+# Duplicate versions of a crate in the graph are an error.
+multiple-versions = "deny"
+wildcards = "deny"
+highlight = "all"
+
+[sources]
+# Dependencies may come from crates.io only.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

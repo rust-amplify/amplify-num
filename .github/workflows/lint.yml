@@ -1,11 +1,17 @@
 name: Lints
 
 on:
+  push:
+    branches:
+      - master
   pull_request:
     branches:
       - master
       - develop
       - 'v[0-9]+.*'
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,27 +20,46 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
+          toolchain: nightly
           components: rustfmt
       - name: Formatting
         run: cargo +nightly fmt --all -- --check
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
+          toolchain: stable
           components: clippy
-      - name: Formatting
-        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+      - name: Clippy with all features
+        run: cargo clippy --locked --all-features --all-targets -- -D warnings
+      - name: Clippy without default features
+        run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
+      - name: Clippy with `alloc` only
+        run: cargo clippy --locked --no-default-features --features alloc --all-targets -- -D warnings
+      - name: Clippy with `serde` only
+        run: cargo clippy --locked --no-default-features --features serde --all-targets -- -D warnings
   doc:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
+          toolchain: stable
           components: rust-docs
-      - name: Formatting
-        run: cargo +nightly doc --workspace --all-features
+      - name: Stable documentation
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo +stable doc --locked --all-features --no-deps
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: nightly
+          components: rust-docs
+      - name: Build docs.rs configuration
+        env:
+          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
+        run: cargo +nightly doc --locked --all-features --no-deps
