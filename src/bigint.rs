@@ -914,7 +914,23 @@ impl<const N: usize, const S: bool> Display for BigInt<N, S> {
 }
 
 impl<const N: usize, const S: bool> Debug for BigInt<N, S> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { Display::fmt(self, f) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        const DEBUG_LOWER_HEX: u32 = 1 << 4;
+        const DEBUG_UPPER_HEX: u32 = 1 << 5;
+
+        #[expect(
+            deprecated,
+            reason = "Formatter::flags is the only stable API exposing the x? and X? flags"
+        )]
+        let flags = f.flags();
+        if flags & DEBUG_LOWER_HEX != 0 {
+            LowerHex::fmt(self, f)
+        } else if flags & DEBUG_UPPER_HEX != 0 {
+            UpperHex::fmt(self, f)
+        } else {
+            Display::fmt(self, f)
+        }
+    }
 }
 
 impl<const N: usize, const S: bool> Binary for BigInt<N, S> {
@@ -1067,9 +1083,10 @@ mod tests {
 
     macro_rules! assert_same_fmt {
         ($big:expr, $prim:expr) => {
-            assert_fmt!($big, $prim => "{}" "{:?}" "{:b}" "{:o}" "{:x}" "{:X}" "{:#b}" "{:#o}"
-                "{:#x}" "{:#X}" "{:+}" "{:45}" "{:<45}" "{:^45}" "{:>+45}" "{:045}" "{:+045}"
-                "{:#040x}" "{:_<#40X}" "{:*^#140b}" "{:#050o}" "{:1}" "{:#1x}");
+            assert_fmt!($big, $prim => "{}" "{:?}" "{:#?}" "{:x?}" "{:X?}" "{:#x?}" "{:#X?}"
+                "{:b}" "{:o}" "{:x}" "{:X}" "{:#b}" "{:#o}" "{:#x}" "{:#X}" "{:+}" "{:45}"
+                "{:<45}" "{:^45}" "{:>+45}" "{:045}" "{:+045}" "{:+045?}" "{:#040x}" "{:#040x?}"
+                "{:_<#40X}" "{:_<#40X?}" "{:*^#140b}" "{:#050o}" "{:1}" "{:#1x}");
         };
     }
 
@@ -1601,19 +1618,28 @@ mod tests {
         let val = u256::from_inner([0, 0xAAAAAAAABBBBBBBB, 0x0000000111122222, 0]);
         assert_eq!(format!("{val:X}"), "111122222AAAAAAAABBBBBBBB0000000000000000");
         assert_eq!(format!("{val:#x}"), "0x111122222aaaaaaaabbbbbbbb0000000000000000");
+        assert_eq!(format!("{val:x?}"), "111122222aaaaaaaabbbbbbbb0000000000000000");
+        assert_eq!(format!("{val:X?}"), "111122222AAAAAAAABBBBBBBB0000000000000000");
+        assert_eq!(format!("{val:#x?}"), "0x111122222aaaaaaaabbbbbbbb0000000000000000");
+        assert_eq!(format!("{val:#X?}"), "0x111122222AAAAAAAABBBBBBBB0000000000000000");
         assert_eq!(
             format!("{:#066x}", u256::from(0xDEADBEEFu32)),
             format!("0x{:0>64}", "deadbeef")
         );
+        assert_eq!(format!("{:#012X?}", u256::from(0xDEADBEEFu32)), "0x00DEADBEEF");
         assert_eq!(format!("{:x}", i256::from(-1)), "f".repeat(64));
+        assert_eq!(format!("{:X?}", i256::from(-1)), "F".repeat(64));
         assert_eq!(format!("{:o}", u256::MAX), format!("17{}", "7".repeat(84)));
         assert_eq!(format!("{:b}", u1024::MAX), "1".repeat(1024));
         assert_eq!(format!("{:b}", i1024::MIN), format!("1{}", "0".repeat(1023)));
         assert_eq!(format!("{:w^#7X}", u256::ONE), "ww0x1ww");
+        assert_eq!(format!("{:w^#7X?}", u256::ONE), "ww0x1ww");
+        assert_eq!(format!("{:#X?}", [u256::from(0xABu8)]), "[\n    0xAB,\n]");
         assert_eq!(
             format!("{:5}|{:<5}|{:05}", i256::from(-1), i256::ONE, i256::from(-1)),
             "   -1|1    |-0001"
         );
+        assert_eq!(format!("{:+05?}", i256::ONE), "+0001");
 
         let max = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
         assert_eq!(u256::MAX.to_string(), max);
